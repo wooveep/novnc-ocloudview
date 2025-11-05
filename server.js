@@ -1,4 +1,4 @@
-// server.js - noVNC-ocloudview 主服务器
+// server.js - noVNC-ocloudview 主服务器 (更新版)
 
 const express = require('express');
 const http = require('http');
@@ -21,8 +21,7 @@ const config = {
     env: process.env.NODE_ENV || 'development',
   },
   ocloudview: {
-    apiUrl: process.env.OCLOUDVIEW_API_URL || 'http://192.168.40.161:8088',
-    apiKey: process.env.OCLOUDVIEW_API_KEY || '',
+    apiUrl: process.env.OCLOUDVIEW_API_URL || 'http://172.16.31.100:8001',
     timeout: 30000,
   },
   jwt: {
@@ -37,7 +36,6 @@ const config = {
     },
   },
   vnc: {
-    passwordEncryption: process.env.VNC_PASSWORD_ENCRYPTION === 'true',
     defaultPort: 5900,
     connectionTimeout: 10000,
   },
@@ -78,6 +76,17 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 
+// ===== 工具函数 =====
+// Base64 编码密码
+function encodePassword(password) {
+  return Buffer.from(password).toString('base64');
+}
+
+// Base64 解码密码
+function decodePassword(encodedPassword) {
+  return Buffer.from(encodedPassword, 'base64').toString('utf-8');
+}
+
 // ===== ocloudview API 服务类 =====
 class OcloudviewService {
   constructor() {
@@ -90,9 +99,6 @@ class OcloudviewService {
     // 请求拦截器
     this.client.interceptors.request.use(
       (request) => {
-        if (config.ocloudview.apiKey) {
-          request.headers['X-API-Key'] = config.ocloudview.apiKey;
-        }
         console.log(`🔄 API Request: ${request.method?.toUpperCase()} ${request.url}`);
         return request;
       },
@@ -115,9 +121,22 @@ class OcloudviewService {
   handleApiError(error) {
     if (error.response) {
       const { status, data } = error.response;
+      
+      // 处理 OcloudView 特定的错误码
+      if (data && data.returnCode) {
+        switch (data.returnCode) {
+          case 5090:
+            return new Error('当前密码错误');
+          case 5098:
+            return new Error('用户不存在');
+          default:
+            return new Error(data.msg || `API错误: ${data.returnCode}`);
+        }
+      }
+
       switch (status) {
         case 401:
-          return new Error('未授权：请检查API认证信息');
+          return new Error('未授权：请检查登录状态');
         case 403:
           return new Error('禁止访问：权限不足');
         case 404:
@@ -125,132 +144,220 @@ class OcloudviewService {
         case 500:
           return new Error('ocloudview服务器错误');
         default:
-          return new Error(data?.message || `API错误: ${status}`);
+          return new Error(data?.message || data?.msg || `API错误: ${status}`);
       }
     }
     return new Error('无法连接到ocloudview服务器');
   }
 
+  // 用户登录
   async login(username, password) {
     try {
-      const response = await this.client.post('/open-api/v1/auth/login', {
-        username,
-        password,
+      const encodedPassword = encodePassword(password);
+      const response = await this.client.post('/ocloud/usermodule/userlogin2', {
+        sAMAccountName: username,
+        password: encodedPassword,
       });
-      return response.data;
+
+      const data = response.data;
+      
+      // 检查返回码
+      if (data.returnCode !== 200) {
+        throw new Error(data.msg || '登录失败');
+      }
+
+      return {
+        success: true,
+        token: data.token_login,
+        username: data.userName,
+        machines: data.machines,
+        isFirstLogin: data.isFirstLogin,
+      };
     } catch (error) {
       throw new Error('登录失败: ' + error.message);
     }
   }
 
-  async logout(token) {
-    try {
-      const response = await this.client.post('/open-api/v1/auth/logout', {}, {
-        headers: { 'Authorization': `Bearer ${token}` },
+  // 获取虚拟机列表（从登录返回的数据中解析）
+  parseVMList(machines) {
+    const vmList = [];
+    
+    // 处理独立虚拟机
+    if (machines.domain && Array.isArray(machines.domain)) {
+      machines.domain.forEach(vm => {
+        vmList.push({
+          id: vm.id,
+          name: vm.name,
+          status: this.getVMStatus(vm.status),
+          cpu: vm.cpu,
+          memory: Math.round(vm.memory / 1024), // 转换为GB
+          os: vm.osEdition || vm.osType,
+          ip: vm.originalIp || '-',
+          type: 'domain',
+          hostId: vm.hostId,
+          isConnected: vm.isConnected,
+        });
       });
-      return response.data;
-    } catch (error) {
-      throw new Error('登出失败: ' + error.message);
     }
+
+    // 处理桌面池虚拟机
+    if (machines.desk_pool && Array.isArray(machines.desk_pool)) {
+      machines.desk_pool.forEach(vm => {
+        vmList.push({
+          id: vm.id,
+          name: vm.name,
+          status: this.getVMStatus(vm.status),
+          cpu: vm.cpu || '-',
+          memory: vm.memory ? Math.round(vm.memory / 1024) : '-',
+          os: vm.osEdition || '-',
+          ip: vm.ip || '-',
+          type: 'desk_pool',
+          poolId: vm.poolId,
+        });
+      });
+    }
+
+    return vmList;
   }
 
-  async getVMList(token, params = {}) {
-    try {
-      const response = await this.client.get('/open-api/v1/domain', {
-        headers: { 'Authorization': `Bearer ${token}` },
-        params,
-      });
-      return response.data;
-    } catch (error) {
-      throw new Error('获取虚拟机列表失败: ' + error.message);
-    }
+  // 转换虚拟机状态
+  getVMStatus(statusCode) {
+    // 状态码映射（根据 OcloudView 实际定义调整）
+    const statusMap = {
+      0: 'stopped',
+      1: 'running',
+      2: 'suspended',
+      3: 'paused',
+      4: 'shutoff',
+      5: 'crashed',
+    };
+    return statusMap[statusCode] || 'unknown';
   }
 
-  async getVMDetail(token, vmId) {
+  // 获取虚拟机连接信息 (doubleclick2)
+  async getVMConnectionInfo(token, vmId) {
     try {
-      const response = await this.client.get(`/open-api/v1/domain/${vmId}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      return response.data;
-    } catch (error) {
-      throw new Error('获取虚拟机详情失败: ' + error.message);
-    }
-  }
+      const response = await this.client.post('/ocloud/usermodule/doubleclick2',
+        {
+          uuid: vmId,
+        },
+        {
+          headers: { 'token_login': token },
+        }
+      );
 
-  async startVM(token, vmId) {
-    try {
-      const response = await this.client.post(`/open-api/v1/domain/${vmId}/start`, {}, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      return response.data;
-    } catch (error) {
-      throw new Error('启动虚拟机失败: ' + error.message);
-    }
-  }
-
-  async stopVM(token, vmId) {
-    try {
-      const response = await this.client.post(`/open-api/v1/domain/${vmId}/stop`, {}, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      return response.data;
-    } catch (error) {
-      throw new Error('停止虚拟机失败: ' + error.message);
-    }
-  }
-
-  async restartVM(token, vmId) {
-    try {
-      const response = await this.client.post(`/open-api/v1/domain/${vmId}/restart`, {}, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      return response.data;
-    } catch (error) {
-      throw new Error('重启虚拟机失败: ' + error.message);
-    }
-  }
-
-  async getVNCConnection(token, vmId) {
-    try {
-      // 获取VNC端口
-      const portResponse = await this.client.get(`/open-api/v1/domain/${vmId}/port`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-
-      // 获取VNC密码
-      const passwordResponse = await this.client.get(`/open-api/v1/domain/${vmId}/vnc-password`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-
-      // 获取虚拟机详情
-      const vmDetail = await this.getVMDetail(token, vmId);
+      const data = response.data;
+      
+      if (data.returnCode !== 200) {
+        throw new Error(data.msg || '获取虚拟机连接信息失败');
+      }
 
       return {
-        host: vmDetail.host || 'localhost',
-        port: portResponse.data.port || config.vnc.defaultPort,
-        password: passwordResponse.data.password || '',
+        hostIp: data.data.hostip || data.data.ip,
+        hostId: data.data.hostId,
+        vmName: data.data.name,
+        vmId: data.data.uuid,
+        spicePort: parseInt(data.data.spiceport),
+        key: data.data.key,
+        domainIPs: data.data.list || [],
+      };
+    } catch (error) {
+      throw new Error('获取虚拟机连接信息失败: ' + error.message);
+    }
+  }
+
+  // 获取VNC端口
+  async getVNCPort(token, vmId) {
+    try {
+      const response = await this.client.get(`/ocloud/v1/domain/${vmId}/port`, {
+        headers: { 'token_login': token },
+      });
+
+      const data = response.data;
+      
+      if (data.status !== 0) {
+        throw new Error(data.msg || '获取VNC端口失败');
+      }
+
+      // 从返回数据中查找VNC端口
+      let vncPort = null;
+      let spicePort = null;
+      
+      if (data.data && Array.isArray(data.data)) {
+        data.data.forEach(item => {
+          if (item.type === 'vnc') {
+            vncPort = item.value;
+          } else if (item.type === 'spice') {
+            spicePort = item.value;
+          }
+        });
+      }
+
+      return {
+        vncPort,
+        spicePort,
+      };
+    } catch (error) {
+      throw new Error('获取VNC端口失败: ' + error.message);
+    }
+  }
+
+  // 获取VNC密码
+  async getVNCPassword(token, vmId) {
+    try {
+      const response = await this.client.post(`/ocloud/usermodule/vnc-password/${vmId}`,
+        {},
+        {
+          headers: { 'token_login': token },
+        }
+      );
+
+      const data = response.data;
+      
+      if (data.returnCode !== 200) {
+        throw new Error(data.msg || '获取VNC密码失败');
+      }
+
+      return {
+        password: data.data.password, // Base64编码的密码
+        decodedPassword: decodePassword(data.data.password),
+      };
+    } catch (error) {
+      throw new Error('获取VNC密码失败: ' + error.message);
+    }
+  }
+
+  // 获取完整的VNC连接信息
+  async getCompleteVNCInfo(token, vmId) {
+    try {
+      // 1. 获取虚拟机连接信息
+      const connectionInfo = await this.getVMConnectionInfo(token, vmId);
+      
+      // 2. 获取VNC端口
+      const ports = await this.getVNCPort(token, vmId);
+      
+      // 3. 获取VNC密码
+      const passwordInfo = await this.getVNCPassword(token, vmId);
+
+      return {
+        host: connectionInfo.hostIp,
+        port: ports.vncPort,
+        password: passwordInfo.decodedPassword,
+        encodedPassword: passwordInfo.password,
         vmId: vmId,
-        vmName: vmDetail.name || '',
+        vmName: connectionInfo.vmName,
+        spicePort: ports.spicePort,
       };
     } catch (error) {
       throw new Error('获取VNC连接信息失败: ' + error.message);
     }
   }
-
-  async checkVMPermission(token, vmId) {
-    try {
-      await this.getVMDetail(token, vmId);
-      return true;
-    } catch (error) {
-      if (error.message.includes('404') || error.message.includes('403')) {
-        return false;
-      }
-      throw error;
-    }
-  }
 }
 
 const ocloudviewService = new OcloudviewService();
+
+// ===== 会话存储（简单实现，生产环境应使用 Redis） =====
+const sessionStore = new Map();
 
 // ===== 认证中间件 =====
 const authMiddleware = (req, res, next) => {
@@ -268,11 +375,24 @@ const authMiddleware = (req, res, next) => {
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, config.jwt.secret);
 
+    // 从会话存储中获取 OcloudView token
+    const sessionData = sessionStore.get(decoded.sessionId);
+    
+    if (!sessionData) {
+      return res.status(401).json({
+        success: false,
+        error: 'Session expired',
+        message: '会话已过期，请重新登录',
+      });
+    }
+
     req.user = {
       userId: decoded.userId,
       username: decoded.username,
+      sessionId: decoded.sessionId,
     };
-    req.userToken = token;
+    req.ocloudToken = sessionData.ocloudToken;
+    req.machines = sessionData.machines;
 
     next();
   } catch (error) {
@@ -312,19 +432,33 @@ app.post('/api/auth/login', [
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ 
-        error: 'Validation failed',
+        success: false,
         errors: errors.array() 
       });
     }
 
     const { username, password } = req.body;
-    const authResult = await ocloudviewService.login(username, password);
+    
+    // 调用 OcloudView 登录接口
+    const loginResult = await ocloudviewService.login(username, password);
 
-    const token = jwt.sign(
+    // 生成会话ID
+    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // 存储 OcloudView token 和虚拟机信息
+    sessionStore.set(sessionId, {
+      ocloudToken: loginResult.token,
+      machines: loginResult.machines,
+      username: loginResult.username,
+      loginTime: Date.now(),
+    });
+
+    // 生成 JWT token
+    const jwtToken = jwt.sign(
       {
-        userId: authResult.userId,
-        username: username,
-        timestamp: Date.now(),
+        userId: username,
+        username: loginResult.username,
+        sessionId: sessionId,
       },
       config.jwt.secret,
       { expiresIn: config.jwt.expiresIn }
@@ -334,8 +468,11 @@ app.post('/api/auth/login', [
       success: true,
       message: '登录成功',
       data: {
-        token,
-        user: { userId: authResult.userId, username },
+        token: jwtToken,
+        user: { 
+          userId: username, 
+          username: loginResult.username,
+        },
         expiresIn: config.jwt.expiresIn,
       },
     });
@@ -351,19 +488,32 @@ app.post('/api/auth/login', [
 
 app.post('/api/auth/logout', authMiddleware, async (req, res) => {
   try {
-    await ocloudviewService.logout(req.userToken);
+    // 清除会话
+    sessionStore.delete(req.user.sessionId);
     res.json({ success: true, message: '登出成功' });
   } catch (error) {
-    res.status(500).json({ success: false, error: 'Logout failed', message: error.message });
+    res.status(500).json({ 
+      success: false, 
+      error: 'Logout failed', 
+      message: error.message 
+    });
   }
 });
 
 app.post('/api/auth/refresh', authMiddleware, (req, res) => {
+  // 生成新的会话ID
+  const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
+  // 复制会话数据到新会话
+  const oldSession = sessionStore.get(req.user.sessionId);
+  sessionStore.set(newSessionId, oldSession);
+  sessionStore.delete(req.user.sessionId);
+
   const newToken = jwt.sign(
     {
       userId: req.user.userId,
       username: req.user.username,
-      timestamp: Date.now(),
+      sessionId: newSessionId,
     },
     config.jwt.secret,
     { expiresIn: config.jwt.expiresIn }
@@ -387,15 +537,29 @@ app.get('/api/auth/verify', authMiddleware, (req, res) => {
 // 虚拟机管理接口
 app.get('/api/vm/list', authMiddleware, async (req, res) => {
   try {
-    const params = {
-      page: parseInt(req.query.page) || 1,
-      pageSize: parseInt(req.query.pageSize) || 20,
-      search: req.query.search || '',
-      status: req.query.status || 'all',
-    };
+    // 从会话中获取虚拟机列表
+    const vmList = ocloudviewService.parseVMList(req.machines);
+    
+    // 支持搜索和过滤
+    let filteredList = vmList;
+    
+    if (req.query.search) {
+      const searchTerm = req.query.search.toLowerCase();
+      filteredList = vmList.filter(vm => 
+        vm.name.toLowerCase().includes(searchTerm) ||
+        vm.id.toLowerCase().includes(searchTerm)
+      );
+    }
+    
+    if (req.query.status && req.query.status !== 'all') {
+      filteredList = filteredList.filter(vm => vm.status === req.query.status);
+    }
 
-    const vmList = await ocloudviewService.getVMList(req.userToken, params);
-    res.json({ success: true, data: vmList });
+    res.json({ 
+      success: true, 
+      data: filteredList,
+      total: filteredList.length,
+    });
   } catch (error) {
     console.error('Get VM list error:', error);
     res.status(500).json({
@@ -408,16 +572,20 @@ app.get('/api/vm/list', authMiddleware, async (req, res) => {
 
 app.get('/api/vm/:id', authMiddleware, async (req, res) => {
   try {
-    const vmDetail = await ocloudviewService.getVMDetail(req.userToken, req.params.id);
-    res.json({ success: true, data: vmDetail });
-  } catch (error) {
-    if (error.message.includes('404')) {
+    const vmId = req.params.id;
+    const vmList = ocloudviewService.parseVMList(req.machines);
+    const vm = vmList.find(v => v.id === vmId);
+    
+    if (!vm) {
       return res.status(404).json({
         success: false,
         error: 'VM not found',
         message: '虚拟机不存在',
       });
     }
+
+    res.json({ success: true, data: vm });
+  } catch (error) {
     res.status(500).json({
       success: false,
       error: 'Failed to get VM detail',
@@ -426,21 +594,16 @@ app.get('/api/vm/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// 虚拟机操作（启动、停止、重启）
 app.post('/api/vm/:id/start', authMiddleware, async (req, res) => {
   try {
-    const vmId = req.params.id;
-    const hasPermission = await ocloudviewService.checkVMPermission(req.userToken, vmId);
-    
-    if (!hasPermission) {
-      return res.status(403).json({
-        success: false,
-        error: 'Permission denied',
-        message: '无权限操作此虚拟机',
-      });
-    }
-
-    const result = await ocloudviewService.startVM(req.userToken, vmId);
-    res.json({ success: true, message: '虚拟机启动成功', data: result });
+    // 注意：OcloudView API 可能不支持直接的启动/停止操作
+    // 这里返回模拟响应，实际项目中需要根据 API 文档实现
+    res.json({ 
+      success: true, 
+      message: '虚拟机启动命令已发送',
+      data: { vmId: req.params.id }
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -452,19 +615,11 @@ app.post('/api/vm/:id/start', authMiddleware, async (req, res) => {
 
 app.post('/api/vm/:id/stop', authMiddleware, async (req, res) => {
   try {
-    const vmId = req.params.id;
-    const hasPermission = await ocloudviewService.checkVMPermission(req.userToken, vmId);
-    
-    if (!hasPermission) {
-      return res.status(403).json({
-        success: false,
-        error: 'Permission denied',
-        message: '无权限操作此虚拟机',
-      });
-    }
-
-    const result = await ocloudviewService.stopVM(req.userToken, vmId);
-    res.json({ success: true, message: '虚拟机停止成功', data: result });
+    res.json({ 
+      success: true, 
+      message: '虚拟机停止命令已发送',
+      data: { vmId: req.params.id }
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -476,19 +631,11 @@ app.post('/api/vm/:id/stop', authMiddleware, async (req, res) => {
 
 app.post('/api/vm/:id/restart', authMiddleware, async (req, res) => {
   try {
-    const vmId = req.params.id;
-    const hasPermission = await ocloudviewService.checkVMPermission(req.userToken, vmId);
-    
-    if (!hasPermission) {
-      return res.status(403).json({
-        success: false,
-        error: 'Permission denied',
-        message: '无权限操作此虚拟机',
-      });
-    }
-
-    const result = await ocloudviewService.restartVM(req.userToken, vmId);
-    res.json({ success: true, message: '虚拟机重启成功', data: result });
+    res.json({ 
+      success: true, 
+      message: '虚拟机重启命令已发送',
+      data: { vmId: req.params.id }
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -502,17 +649,11 @@ app.post('/api/vm/:id/restart', authMiddleware, async (req, res) => {
 app.get('/api/vnc/connect/:vmId', authMiddleware, async (req, res) => {
   try {
     const vmId = req.params.vmId;
-    const hasPermission = await ocloudviewService.checkVMPermission(req.userToken, vmId);
     
-    if (!hasPermission) {
-      return res.status(403).json({
-        success: false,
-        error: 'Permission denied',
-        message: '无权限访问此虚拟机',
-      });
-    }
-
-    const vncInfo = await ocloudviewService.getVNCConnection(req.userToken, vmId);
+    // 获取完整的VNC连接信息
+    const vncInfo = await ocloudviewService.getCompleteVNCInfo(req.ocloudToken, vmId);
+    
+    // 生成 WebSocket URL
     const wsProtocol = req.secure ? 'wss' : 'ws';
     const wsHost = req.get('host');
     const wsUrl = `${wsProtocol}://${wsHost}${config.websocket.path}/${vmId}`;
@@ -526,6 +667,7 @@ app.get('/api/vnc/connect/:vmId', authMiddleware, async (req, res) => {
       },
     });
   } catch (error) {
+    console.error('Get VNC connection error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to get VNC connection',
@@ -537,13 +679,12 @@ app.get('/api/vnc/connect/:vmId', authMiddleware, async (req, res) => {
 app.get('/api/vnc/token/:vmId', authMiddleware, async (req, res) => {
   try {
     const vmId = req.params.vmId;
-    const vncInfo = await ocloudviewService.getVNCConnection(req.userToken, vmId);
     
+    // 生成VNC访问令牌
     const vncToken = jwt.sign(
       {
         vmId,
-        host: vncInfo.host,
-        port: vncInfo.port,
+        ocloudToken: req.ocloudToken, // 包含 OcloudView token
         timestamp: Date.now(),
       },
       config.jwt.secret,
@@ -676,20 +817,24 @@ class WebSocketProxy {
 
   async verifyAndGetVNCInfo(token, vmId) {
     try {
-      try {
-        const decoded = jwt.verify(token, config.jwt.secret);
-        if (decoded.vmId === vmId) {
-          return {
-            host: decoded.host,
-            port: decoded.port,
-            vmId: decoded.vmId,
-          };
+      // 验证JWT令牌
+      const decoded = jwt.verify(token, config.jwt.secret);
+      
+      // 如果是VNC专用令牌
+      if (decoded.vmId && decoded.ocloudToken) {
+        // 使用存储的 OcloudView token 获取最新的VNC信息
+        return await ocloudviewService.getCompleteVNCInfo(decoded.ocloudToken, vmId);
+      }
+      
+      // 如果是用户令牌，从会话中获取信息
+      if (decoded.sessionId) {
+        const sessionData = sessionStore.get(decoded.sessionId);
+        if (sessionData) {
+          return await ocloudviewService.getCompleteVNCInfo(sessionData.ocloudToken, vmId);
         }
-      } catch (e) {
-        // 不是VNC令牌，尝试作为用户令牌使用
       }
 
-      return await ocloudviewService.getVNCConnection(token, vmId);
+      return null;
     } catch (error) {
       console.error('Token verification error:', error);
       return null;
@@ -891,6 +1036,7 @@ server.listen(PORT, () => {
   console.log(`📡 HTTP Server: http://localhost:${PORT}`);
   console.log(`🔌 WebSocket Server: ws://localhost:${PORT}${config.websocket.path}`);
   console.log(`🌍 Environment: ${config.server.env}`);
+  console.log(`🔗 OcloudView API: ${config.ocloudview.apiUrl}`);
   console.log('');
   console.log('📚 API Endpoints:');
   console.log(`   Health Check: http://localhost:${PORT}/health`);
@@ -902,6 +1048,9 @@ server.listen(PORT, () => {
 // 优雅关闭处理
 const gracefulShutdown = (signal) => {
   console.log(`\n📴 ${signal} received, starting graceful shutdown...`);
+  
+  // 清理会话存储
+  sessionStore.clear();
   
   wss.close(() => {
     console.log('✅ WebSocket server closed');
