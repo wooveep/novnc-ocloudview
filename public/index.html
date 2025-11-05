@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - noVNC Cloud Desktop</title>
+    <link rel="stylesheet" href="/css/main.css">
+</head>
+<body class="login-page">
+    <div class="login-box">
+        <div style="text-align: center; margin-bottom: 30px;">
+            <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                        border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; 
+                        font-size: 36px; color: white; margin-bottom: 15px;">
+                🖥️
+            </div>
+            <h1 style="color: #333; font-size: 24px; font-weight: 600; margin-bottom: 10px;">云桌面系统</h1>
+            <div style="color: #666; font-size: 14px;">noVNC + ocloudview</div>
+        </div>
+
+        <div class="error-message" id="errorMessage"></div>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label class="form-label" for="username">用户名</label>
+                <input type="text" class="form-input" id="username" name="username" required 
+                       placeholder="请输入用户名" autocomplete="username">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="password">密码</label>
+                <input type="password" class="form-input" id="password" name="password" required 
+                       placeholder="请输入密码" autocomplete="current-password">
+            </div>
+
+            <div style="display: flex; align-items: center; margin-bottom: 20px;">
+                <input type="checkbox" id="remember" name="remember" style="margin-right: 8px;">
+                <label for="remember" style="cursor: pointer; user-select: none; color: #666; font-size: 14px;">
+                    记住我
+                </label>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%;" id="loginBtn">
+                登录
+            </button>
+
+            <div id="loadingIndicator" style="display: none; text-align: center; padding: 20px;">
+                <div class="spinner"></div>
+                <p style="color: #666; margin-top: 15px;">正在登录...</p>
+            </div>
+        </form>
+
+        <div style="text-align: center; margin-top: 30px; color: #999; font-size: 12px;">
+            <p>© 2024 Cloud Desktop System</p>
+        </div>
+    </div>
+
+    <div style="position: fixed; top: 20px; right: 20px; background: white; padding: 8px 15px; 
+                border-radius: 20px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); 
+                display: flex; align-items: center; font-size: 12px; color: #666;">
+        <div class="status-dot" id="statusDot"></div>
+        <span style="margin-left: 8px;" id="statusText">检查服务器...</span>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script>
+        // 检查服务器状态
+        async function updateServerStatus() {
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            
+            const isOnline = await checkServerStatus();
+            
+            if (isOnline) {
+                statusDot.classList.add('online');
+                statusDot.classList.remove('offline');
+                statusText.textContent = '服务器在线';
+            } else {
+                statusDot.classList.remove('online');
+                statusDot.classList.add('offline');
+                statusText.textContent = '服务器离线';
+            }
+        }
+
+        // 处理登录
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const remember = document.getElementById('remember').checked;
+            
+            const loginBtn = document.getElementById('loginBtn');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            
+            // 显示加载状态
+            loginBtn.style.display = 'none';
+            loadingIndicator.style.display = 'block';
+            
+            try {
+                const result = await API.auth.login(username, password);
+                
+                if (result.success) {
+                    // 保存令牌和用户名
+                    Utils.setToken(result.data.token, remember);
+                    Utils.setUsername(username, remember);
+                    
+                    // 跳转到仪表板
+                    window.location.href = '/dashboard.html';
+                } else {
+                    Utils.showError(result.message || '登录失败');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                Utils.showError(error.message || '网络错误，请稍后重试');
+            } finally {
+                loginBtn.style.display = 'block';
+                loadingIndicator.style.display = 'none';
+            }
+        });
+
+        // 页面加载时初始化
+        window.addEventListener('DOMContentLoaded', async () => {
+            // 检查服务器状态
+            updateServerStatus();
+            setInterval(updateServerStatus, 30000);
+            
+            // 检查是否已登录
+            const token = Utils.getToken();
+            if (token) {
+                try {
+                    const result = await API.auth.verify();
+                    if (result.valid) {
+                        window.location.href = '/dashboard.html';
+                    }
+                } catch (error) {
+                    Utils.clearToken();
+                }
+            }
+            
+            // 自动填充记住的用户名
+            const savedUsername = localStorage.getItem('username');
+            if (savedUsername) {
+                document.getElementById('username').value = savedUsername;
+                document.getElementById('remember').checked = true;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>虚拟机仪表板 - noVNC Cloud Desktop</title>
+    <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-icon">🖥️</div>
+                <span>云桌面管理系统</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <span style="color: #666; font-size: 14px;">
+                    👤 <span id="currentUser">-</span>
+                </span>
+                <button class="btn btn-danger" onclick="logout()">退出登录</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h1 style="font-size: 28px; color: #333; margin-bottom: 10px;">我的虚拟机</h1>
+        <p style="color: #666; margin-bottom: 30px;">管理和连接您的云桌面</p>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; gap: 20px;">
+            <div style="flex: 1; max-width: 400px; position: relative;">
+                <input type="text" class="form-input" id="searchInput" 
+                       placeholder="搜索虚拟机..." style="padding-right: 40px;">
+                <span style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: #999;">
+                    🔍
+                </span>
+            </div>
+            <button class="btn btn-success" onclick="loadVMs()">
+                <span>🔄</span>
+                <span>刷新</span>
+            </button>
+        </div>
+
+        <div class="vm-grid" id="vmGrid">
+            <!-- 虚拟机卡片将在这里动态生成 -->
+        </div>
+
+        <div id="emptyState" style="display: none; text-align: center; padding: 60px 20px; color: #666;">
+            <div style="font-size: 64px; margin-bottom: 20px; opacity: 0.3;">📦</div>
+            <div style="font-size: 20px; margin-bottom: 10px;">暂无虚拟机</div>
+            <div style="font-size: 14px; color: #999;">您还没有可用的虚拟机</div>
+        </div>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <p id="loadingMessage">正在加载...</p>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script>
+        let vms = [];
+        
+        // 加载虚拟机列表
+        async function loadVMs() {
+            Utils.showLoading('正在加载虚拟机列表...');
+            
+            try {
+                const result = await API.vm.list();
+                vms = result.data || [];
+                renderVMs();
+            } catch (error) {
+                console.error('Load VMs error:', error);
+                Utils.showError('加载虚拟机列表失败: ' + error.message);
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+        
+        // 渲染虚拟机列表
+        function renderVMs() {
+            const grid = document.getElementById('vmGrid');
+            const emptyState = document.getElementById('emptyState');
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            
+            // 过滤虚拟机
+            const filteredVMs = vms.filter(vm => 
+                vm.name?.toLowerCase().includes(searchTerm) ||
+                vm.id?.toLowerCase().includes(searchTerm)
+            );
+            
+            if (filteredVMs.length === 0) {
+                grid.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+            
+            emptyState.style.display = 'none';
+            
+            grid.innerHTML = filteredVMs.map(vm => `
+                <div class="card vm-card" data-vm-id="${vm.id}">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+                        <div>
+                            <div style="font-size: 18px; font-weight: 600; color: #333; margin-bottom: 5px;">
+                                ${vm.name || 'Unnamed VM'}
+                            </div>
+                            <div style="font-size: 12px; color: #999;">${vm.id}</div>
+                        </div>
+                        <span class="vm-status ${vm.status || 'unknown'}">
+                            ${Utils.getStatusText(vm.status)}
+                        </span>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; 
+                                margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                        <div>
+                            <div style="font-size: 12px; color: #999; margin-bottom: 4px;">CPU</div>
+                            <div style="font-size: 14px; color: #333; font-weight: 500;">
+                                ${vm.cpu || '-'} 核
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: #999; margin-bottom: 4px;">内存</div>
+                            <div style="font-size: 14px; color: #333; font-weight: 500;">
+                                ${vm.memory || '-'} GB
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: #999; margin-bottom: 4px;">系统</div>
+                            <div style="font-size: 14px; color: #333; font-weight: 500;">
+                                ${vm.os || '-'}
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: #999; margin-bottom: 4px;">IP地址</div>
+                            <div style="font-size: 14px; color: #333; font-weight: 500;">
+                                ${vm.ip || '-'}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px;">
+                        ${renderVMActions(vm)}
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // 渲染虚拟机操作按钮
+        function renderVMActions(vm) {
+            if (vm.status === 'running') {
+                return `
+                    <button class="btn btn-primary" style="flex: 1;" onclick="connectVM('${vm.id}')">
+                        连接桌面
+                    </button>
+                    <button class="btn btn-danger" style="flex: 1;" onclick="stopVM('${vm.id}')">
+                        停止
+                    </button>
+                `;
+            } else if (vm.status === 'stopped' || vm.status === 'shutoff') {
+                return `
+                    <button class="btn btn-success" style="flex: 1;" onclick="startVM('${vm.id}')">
+                        启动
+                    </button>
+                `;
+            } else {
+                return `
+                    <button class="btn" style="flex: 1;" disabled>
+                        不可用
+                    </button>
+                `;
+            }
+        }
+        
+        // 连接虚拟机
+        async function connectVM(vmId) {
+            Utils.showLoading('正在建立连接...');
+            
+            try {
+                const result = await API.vnc.connect(vmId);
+                
+                if (result.success) {
+                    // 跳转到VNC页面
+                    window.location.href = `/vnc.html?id=${vmId}&token=${Utils.getToken()}`;
+                } else {
+                    throw new Error(result.message || '连接失败');
+                }
+            } catch (error) {
+                console.error('Connect VM error:', error);
+                Utils.showError('连接虚拟机失败: ' + error.message);
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+        
+        // 启动虚拟机
+        async function startVM(vmId) {
+            if (!confirm('确定要启动这台虚拟机吗？')) {
+                return;
+            }
+            
+            Utils.showLoading('正在启动虚拟机...');
+            
+            try {
+                const result = await API.vm.start(vmId);
+                
+                if (result.success) {
+                    alert('虚拟机启动成功');
+                    loadVMs();
+                } else {
+                    throw new Error(result.message || '启动失败');
+                }
+            } catch (error) {
+                console.error('Start VM error:', error);
+                Utils.showError('启动虚拟机失败: ' + error.message);
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+        
+        // 停止虚拟机
+        async function stopVM(vmId) {
+            if (!confirm('确定要停止这台虚拟机吗？')) {
+                return;
+            }
+            
+            Utils.showLoading('正在停止虚拟机...');
+            
+            try {
+                const result = await API.vm.stop(vmId);
+                
+                if (result.success) {
+                    alert('虚拟机停止成功');
+                    loadVMs();
+                } else {
+                    throw new Error(result.message || '停止失败');
+                }
+            } catch (error) {
+                console.error('Stop VM error:', error);
+                Utils.showError('停止虚拟机失败: ' + error.message);
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+        
+        // 退出登录
+        async function logout() {
+            if (confirm('确定要退出登录吗？')) {
+                try {
+                    await API.auth.logout();
+                } catch (error) {
+                    console.error('Logout error:', error);
+                }
+                
+                Utils.clearToken();
+                window.location.href = '/';
+            }
+        }
+        
+        // 搜索虚拟机
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            renderVMs();
+        });
+        
+        // 页面加载时初始化
+        window.addEventListener('DOMContentLoaded', async () => {
+            // 检查认证状态
+            const isAuthenticated = await checkAuth();
+            if (!isAuthenticated) {
+                return;
+            }
+            
+            // 显示用户名
+            document.getElementById('currentUser').textContent = Utils.getUsername() || '用户';
+            
+            // 加载虚拟机列表
+            loadVMs();
+            
+            // 定期刷新（每30秒）
+            setInterval(loadVMs, 30000);
+        });
+    </script>
+</body>
+</html>
