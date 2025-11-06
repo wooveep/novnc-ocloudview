@@ -1,0 +1,20 @@
+/* Custom CSS to hide specific noVNC toolbar buttons */
+
+/* Hide clipboard button */
+#noVNC_clipboard_button {
+    display: none !important;
+}
+
+/* Hide settings button */
+#noVNC_settings_button {
+    display: none !important;
+}
+
+/* Optional: Hide the panels too for better security */
+#noVNC_clipboard {
+    display: none !important;
+}
+
+#noVNC_settings {
+    display: none !important;
+}
