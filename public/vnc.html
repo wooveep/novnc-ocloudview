@@ -237,9 +237,11 @@
         function buildNoVNCUrl(vncInfo) {
             const params = new URLSearchParams();
 
-            // Extract WebSocket path (noVNC adds protocol automatically)
+            // Extract WebSocket path (noVNC adds protocol and leading slash automatically)
+            // We need to provide relative path without leading slash
             const wsUrl = new URL(vncInfo.websocketUrl);
-            const pathWithToken = `${wsUrl.pathname}?token=${encodeURIComponent(token)}`;
+            const relativePath = wsUrl.pathname.replace(/^\//, ''); // Remove leading slash
+            const pathWithToken = `${relativePath}?token=${encodeURIComponent(token)}`;
 
             console.log('🔗 [noVNC] Building connection URL');
             console.log(`   WebSocket path: ${pathWithToken}`);
