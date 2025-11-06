@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  novnc-ocloudview:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: novnc-ocloudview
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=3000
+      - OCLOUDVIEW_API_URL=${OCLOUDVIEW_API_URL}
+      - JWT_SECRET=${JWT_SECRET:-change-this-secret-in-production}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-24h}
+      - WEBSOCKET_PATH=${WEBSOCKET_PATH:-/vnc}
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - novnc-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  novnc-network:
+    driver: bridge
