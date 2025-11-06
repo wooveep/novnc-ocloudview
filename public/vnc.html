@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>远程桌面 - noVNC Cloud Desktop</title>
     <link rel="stylesheet" href="/css/main.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@novnc/novnc@latest/app/styles/base.css">
     <style>
         body {
             background: #1a1a1a;
@@ -191,7 +190,7 @@
 
     <script src="/js/api.js"></script>
     <script type="module">
-        import RFB from 'https://cdn.jsdelivr.net/npm/@novnc/novnc@latest/core/rfb.js';
+        import RFB from '/novnc/core/rfb.js';
         
         // 全局变量
         let rfb = null;

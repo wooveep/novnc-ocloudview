@@ -1,0 +1,13 @@
+{
+  "autoconnect": false,
+  "reconnect": true,
+  "reconnect_delay": 5000,
+  "shared": true,
+  "bell": true,
+  "view_only": false,
+  "view_clip": false,
+  "resize": "scale",
+  "quality": 6,
+  "compression": 2,
+  "logging": "warn"
+}
