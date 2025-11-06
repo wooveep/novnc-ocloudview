@@ -3,458 +3,325 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>远程桌面 - noVNC Cloud Desktop</title>
-    <link rel="stylesheet" href="/css/main.css">
+    <title>虚拟机连接 - noVNC</title>
     <style>
-        body {
-            background: #1a1a1a;
-            overflow: hidden;
-            height: 100vh;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        
-        #app {
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            overflow: hidden;
+        }
+
+        #loading-container {
             display: flex;
             flex-direction: column;
-            height: 100vh;
-        }
-        
-        .vnc-toolbar {
-            background: #2c2c2c;
-            border-bottom: 1px solid #444;
-            padding: 10px 15px;
-            display: flex;
-            justify-content: space-between;
+            justify-content: center;
             align-items: center;
-            flex-shrink: 0;
-        }
-        
-        .toolbar-btn {
-            padding: 8px 15px;
-            background: #444;
+            height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: #fff;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        #loading-text {
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        #loading-subtext {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-top: 10px;
+        }
+
+        #error-container {
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+        }
+
+        .error-icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+        }
+
+        #error-message {
+            font-size: 18px;
+            text-align: center;
+            max-width: 600px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .error-back-button {
+            padding: 12px 24px;
+            background-color: #667eea;
+            color: white;
             border: none;
             border-radius: 6px;
-            font-size: 14px;
+            font-size: 16px;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: background-color 0.3s;
         }
-        
-        .toolbar-btn:hover {
-            background: #555;
+
+        .error-back-button:hover {
+            background-color: #5568d3;
         }
-        
-        .toolbar-btn.danger {
-            background: #d32f2f;
+
+        #vnc-container {
+            display: none;
+            width: 100vw;
+            height: 100vh;
         }
-        
-        .toolbar-btn.danger:hover {
-            background: #f44336;
-        }
-        
-        .control-panel {
-            position: fixed;
-            top: 60px;
-            right: -300px;
-            width: 300px;
-            height: calc(100vh - 60px);
-            background: #2c2c2c;
-            border-left: 1px solid #444;
-            transition: right 0.3s;
-            z-index: 100;
-            overflow-y: auto;
-        }
-        
-        .control-panel.open {
-            right: 0;
-        }
-        
-        .panel-section {
-            padding: 15px;
-            border-bottom: 1px solid #444;
-        }
-        
-        .panel-title {
-            color: #aaa;
-            font-size: 12px;
-            text-transform: uppercase;
-            margin-bottom: 10px;
+
+        #vnc-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
         }
     </style>
 </head>
-<body class="vnc-page">
-    <div id="app">
-        <div class="vnc-toolbar">
-            <div style="display: flex; align-items: center; gap: 15px;">
-                <div style="color: #fff; display: flex; align-items: center; gap: 10px;">
-                    <span style="font-size: 16px; font-weight: 500;" id="vmName">虚拟机</span>
-                    <div style="display: flex; align-items: center; gap: 5px; padding: 5px 12px; 
-                                background: #333; border-radius: 20px; font-size: 12px;">
-                        <div class="status-dot connecting" id="statusDot"></div>
-                        <span id="statusText">连接中...</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <button class="toolbar-btn" onclick="toggleControlPanel()">⚙️ 设置</button>
-                <button class="toolbar-btn" onclick="sendCtrlAltDel()">Ctrl+Alt+Del</button>
-                <button class="toolbar-btn" onclick="toggleFullscreen()">🔳 全屏</button>
-                <button class="toolbar-btn danger" onclick="disconnect()">断开连接</button>
-            </div>
-        </div>
-
-        <div id="vnc-container">
-            <div id="vnc-screen" style="width: 100%; height: 100%;"></div>
-            
-            <div class="loading-overlay show" id="loadingScreen">
-                <div class="loading-content">
-                    <div class="spinner"></div>
-                    <div id="loadingText" style="color: #fff; font-size: 16px;">正在连接到远程桌面...</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="control-panel" id="controlPanel">
-            <div style="padding: 15px; background: #333; color: #fff; font-size: 16px; font-weight: 500; 
-                        display: flex; justify-content: space-between; align-items: center;">
-                <span>连接设置</span>
-                <button onclick="toggleControlPanel()" 
-                        style="background: none; border: none; color: #fff; font-size: 20px; cursor: pointer;">×</button>
-            </div>
-
-            <div class="panel-section">
-                <div class="panel-title">显示设置</div>
-                
-                <div style="margin-bottom: 15px;">
-                    <label style="color: #ccc; font-size: 14px; margin-bottom: 5px; display: block;">缩放模式</label>
-                    <select id="scalingMode" onchange="updateScaling()" 
-                            style="width: 100%; padding: 8px; background: #444; border: 1px solid #555; 
-                                   border-radius: 4px; color: #fff; font-size: 14px;">
-                        <option value="off">关闭</option>
-                        <option value="scale" selected>自动缩放</option>
-                        <option value="remote">远程调整</option>
-                    </select>
-                </div>
-
-                <div style="margin-bottom: 15px;">
-                    <label style="color: #ccc; font-size: 14px; margin-bottom: 5px; display: block;">图像质量</label>
-                    <select id="quality" onchange="updateQuality()"
-                            style="width: 100%; padding: 8px; background: #444; border: 1px solid #555; 
-                                   border-radius: 4px; color: #fff; font-size: 14px;">
-                        <option value="0">自动</option>
-                        <option value="2">低</option>
-                        <option value="6" selected>中</option>
-                        <option value="9">高</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label style="color: #ccc; font-size: 14px; margin-bottom: 5px; display: block;">压缩级别</label>
-                    <select id="compression" onchange="updateCompression()"
-                            style="width: 100%; padding: 8px; background: #444; border: 1px solid #555; 
-                                   border-radius: 4px; color: #fff; font-size: 14px;">
-                        <option value="0">关闭</option>
-                        <option value="2" selected>默认</option>
-                        <option value="9">最大</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="panel-section">
-                <div class="panel-title">输入设置</div>
-                
-                <div style="display: flex; align-items: center; gap: 8px; color: #ccc; font-size: 14px; margin-bottom: 10px;">
-                    <input type="checkbox" id="viewOnly" onchange="updateViewOnly()">
-                    <label for="viewOnly" style="cursor: pointer;">仅查看模式</label>
-                </div>
-                
-                <div style="display: flex; align-items: center; gap: 8px; color: #ccc; font-size: 14px;">
-                    <input type="checkbox" id="clipboardSync" checked onchange="updateClipboard()">
-                    <label for="clipboardSync" style="cursor: pointer;">剪贴板同步</label>
-                </div>
-            </div>
-
-            <div class="panel-section">
-                <div class="panel-title">连接信息</div>
-                <div style="color: #aaa; font-size: 12px; line-height: 1.8;">
-                    <div>VM ID: <span id="infoVmId">-</span></div>
-                    <div>协议: <span id="infoProtocol">VNC</span></div>
-                    <div>延迟: <span id="infoPing">-</span> ms</div>
-                </div>
-            </div>
-        </div>
+<body>
+    <!-- Loading State -->
+    <div id="loading-container">
+        <div class="spinner"></div>
+        <div id="loading-text">正在连接虚拟机...</div>
+        <div id="loading-subtext">请稍候</div>
     </div>
 
-    <div class="error-message" id="errorMessage" style="position: fixed; top: 70px; left: 50%; 
-                                                       transform: translateX(-50%); z-index: 2000;"></div>
+    <!-- Error State -->
+    <div id="error-container">
+        <div class="error-icon">⚠️</div>
+        <div id="error-message"></div>
+        <button class="error-back-button" onclick="goBack()">返回仪表板</button>
+    </div>
 
-    <script src="/js/api.js"></script>
-    <script type="module">
-        import RFB from '/novnc/core/rfb.js';
-        
-        // 全局变量
-        let rfb = null;
-        let vmId = null;
-        let token = null;
-        let pingInterval = null;
-        let pingStartTime = 0;
-        
-        // 获取URL参数
-        function getUrlParams() {
-            const params = new URLSearchParams(window.location.search);
-            return {
-                vmId: params.get('id'),
-                token: params.get('token')
-            };
+    <!-- VNC Container -->
+    <div id="vnc-container">
+        <iframe id="vnc-iframe" src="" allow="clipboard-read; clipboard-write" sandbox="allow-same-origin allow-scripts allow-forms allow-modals allow-popups"></iframe>
+    </div>
+
+    <script>
+        'use strict';
+
+        // Configuration
+        const CONFIG = {
+            API_ENDPOINT: '/api/vnc/connect',
+            REDIRECT_DELAY: 2000,
+            NOVNC_BASE_PATH: '/novnc/vnc.html',
+            DEFAULT_SETTINGS: {
+                autoconnect: 'true',
+                resize: 'scale',
+                reconnect: 'true',
+                reconnect_delay: '5000',
+                quality: '6',
+                compression: '2'
+            }
+        };
+
+        // DOM Elements
+        const elements = {
+            loadingContainer: document.getElementById('loading-container'),
+            loadingText: document.getElementById('loading-text'),
+            loadingSubtext: document.getElementById('loading-subtext'),
+            errorContainer: document.getElementById('error-container'),
+            errorMessage: document.getElementById('error-message'),
+            vncContainer: document.getElementById('vnc-container'),
+            vncIframe: document.getElementById('vnc-iframe')
+        };
+
+        // Parse URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const vmId = urlParams.get('id');
+        const token = urlParams.get('token') || localStorage.getItem('token');
+
+        // Initialize
+        console.log('🚀 [VNC Client] Initializing...');
+        console.log(`   VM ID: ${vmId || 'Not provided'}`);
+        console.log(`   Token source: ${urlParams.get('token') ? 'URL parameter' : 'localStorage'}`);
+
+        // Validate inputs
+        if (!vmId) {
+            showError('缺少虚拟机 ID', 'URL 参数中未找到虚拟机 ID，请从仪表板重新连接');
+        } else if (!token) {
+            showError('未认证', '您的登录状态已过期，请重新登录', true);
+        } else {
+            initializeVNC();
         }
-        
-        // 更新连接状态
-        function updateStatus(status, text) {
-            const statusDot = document.getElementById('statusDot');
-            const statusText = document.getElementById('statusText');
-            
-            statusDot.className = `status-dot ${status}`;
-            statusText.textContent = text;
-        }
-        
-        // 初始化VNC连接
-        async function initVNC() {
+
+        /**
+         * Initialize VNC connection
+         */
+        async function initializeVNC() {
             try {
-                const params = getUrlParams();
-                
-                if (!params.vmId || !params.token) {
-                    throw new Error('缺少必要参数');
-                }
-                
-                vmId = params.vmId;
-                token = params.token;
-                
-                // 更新VM ID显示
-                document.getElementById('infoVmId').textContent = vmId;
-                
-                // 获取VNC连接信息
-                const result = await API.vnc.connect(vmId);
-                
-                if (!result.success) {
-                    throw new Error(result.message || '获取连接信息失败');
-                }
-                
-                const vncInfo = result.data;
+                updateLoadingText('正在获取连接信息...');
 
-                console.log('📊 VNC Info from API:', {
-                    host: vncInfo.host,
-                    port: vncInfo.port,
-                    hasPassword: !!vncInfo.password,
-                    passwordLength: vncInfo.password ? vncInfo.password.length : 0,
-                    passwordPreview: vncInfo.password ? vncInfo.password.substring(0, 3) + '***' : 'null'
-                });
+                // Fetch VNC connection info
+                const vncInfo = await fetchVNCInfo();
 
-                // 更新VM名称
-                document.getElementById('vmName').textContent = vncInfo.vmName || `VM-${vmId}`;
+                updateLoadingText('正在启动 noVNC 客户端...');
 
-                // 构建WebSocket URL
-                const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-                const wsUrl = `${protocol}://${window.location.host}/vnc/${vmId}?token=${token}`;
+                // Build noVNC URL
+                const noVNCUrl = buildNoVNCUrl(vncInfo);
 
-                console.log('Connecting to:', wsUrl);
-                console.log('Using password:', vncInfo.password ? '***' + vncInfo.password.slice(-3) : 'NO PASSWORD');
+                console.log('✅ [VNC Client] Initialization complete');
+                console.log(`   Launching noVNC: ${noVNCUrl.split('#')[0]}`);
 
-                // 创建RFB连接
-                rfb = new RFB(
-                    document.getElementById('vnc-screen'),
-                    wsUrl,
-                    {
-                        credentials: {
-                            password: vncInfo.password || '',
-                        },
-                        wsProtocols: ['binary'],
-                    }
-                );
+                // Load noVNC
+                loadNoVNC(noVNCUrl);
 
-                console.log('✅ RFB instance created with credentials');
-                
-                // 设置RFB事件处理
-                rfb.addEventListener('connect', handleConnect);
-                rfb.addEventListener('disconnect', handleDisconnect);
-                rfb.addEventListener('credentialsrequired', handleCredentials);
-                rfb.addEventListener('securityfailure', handleSecurityFailure);
-                rfb.addEventListener('clipboard', handleClipboard);
-                
-                // 设置默认选项
-                rfb.viewOnly = false;
-                rfb.scaleViewport = true;
-                rfb.resizeSession = false;
-                rfb.qualityLevel = 6;
-                rfb.compressionLevel = 2;
-                
-                // 开始ping测试
-                startPingTest();
-                
             } catch (error) {
-                console.error('VNC initialization error:', error);
-                Utils.showError('连接初始化失败: ' + error.message);
-                document.getElementById('loadingScreen').classList.remove('show');
-                updateStatus('disconnected', '连接失败');
+                console.error('❌ [VNC Client] Initialization failed:', error);
+                handleInitError(error);
             }
         }
-        
-        // 处理连接成功
-        function handleConnect(e) {
-            console.log('VNC connected');
-            document.getElementById('loadingScreen').classList.remove('show');
-            updateStatus('connected', '已连接');
-        }
-        
-        // 处理断开连接
-        function handleDisconnect(e) {
-            console.log('VNC disconnected', e.detail);
-            updateStatus('disconnected', '已断开');
-            stopPingTest();
-            
-            if (e.detail.clean) {
-                Utils.showError('连接已正常断开');
-            } else {
-                Utils.showError('连接意外断开');
-            }
-        }
-        
-        // 处理凭据请求
-        function handleCredentials(e) {
-            const password = prompt('请输入VNC密码:');
-            rfb.sendCredentials({ password: password || '' });
-        }
-        
-        // 处理安全失败
-        function handleSecurityFailure(e) {
-            console.error('Security failure:', e.detail);
-            Utils.showError('安全验证失败: ' + (e.detail.reason || '未知错误'));
-        }
-        
-        // 处理剪贴板
-        function handleClipboard(e) {
-            if (document.getElementById('clipboardSync').checked) {
-                navigator.clipboard.writeText(e.detail.text).catch(err => {
-                    console.error('Clipboard write failed:', err);
-                });
-            }
-        }
-        
-        // Ping测试
-        function startPingTest() {
-            pingInterval = setInterval(() => {
-                if (rfb && rfb._rfb_connection_state === 'connected') {
-                    pingStartTime = Date.now();
-                    // 这里可以发送一个小的测试消息来测量延迟
-                    // 由于VNC协议限制，这里只是模拟
-                    const ping = Math.floor(Math.random() * 20) + 10; // 模拟10-30ms延迟
-                    document.getElementById('infoPing').textContent = ping;
+
+        /**
+         * Fetch VNC connection information from API
+         */
+        async function fetchVNCInfo() {
+            console.log('📞 [API] Fetching VNC connection info...');
+
+            const response = await fetch(`${CONFIG.API_ENDPOINT}/${vmId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
                 }
-            }, 5000);
-        }
-        
-        function stopPingTest() {
-            if (pingInterval) {
-                clearInterval(pingInterval);
-                pingInterval = null;
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
             }
+
+            const result = await response.json();
+
+            if (!result.success) {
+                throw new Error(result.error || result.message || 'API 返回失败状态');
+            }
+
+            const vncInfo = result.data;
+            console.log('✅ [API] VNC info received');
+            console.log(`   WebSocket URL: ${vncInfo.websocketUrl}`);
+            console.log(`   Has password: ${!!vncInfo.password}`);
+
+            return vncInfo;
         }
-        
-        // 全局函数
-        window.sendCtrlAltDel = function() {
-            if (rfb && rfb._rfb_connection_state === 'connected') {
-                rfb.sendCtrlAltDel();
+
+        /**
+         * Build noVNC URL with parameters
+         */
+        function buildNoVNCUrl(vncInfo) {
+            const params = new URLSearchParams();
+
+            // Extract WebSocket path (noVNC adds protocol automatically)
+            const wsUrl = new URL(vncInfo.websocketUrl);
+            const pathWithToken = `${wsUrl.pathname}?token=${encodeURIComponent(token)}`;
+
+            console.log('🔗 [noVNC] Building connection URL');
+            console.log(`   WebSocket path: ${pathWithToken}`);
+
+            // Set path and password
+            params.set('path', pathWithToken);
+            if (vncInfo.password) {
+                params.set('password', vncInfo.password);
+            }
+
+            // Apply default settings
+            Object.entries(CONFIG.DEFAULT_SETTINGS).forEach(([key, value]) => {
+                params.set(key, value);
+            });
+
+            return `${CONFIG.NOVNC_BASE_PATH}#${params.toString()}`;
+        }
+
+        /**
+         * Load noVNC in iframe
+         */
+        function loadNoVNC(url) {
+            elements.vncIframe.src = url;
+            elements.loadingContainer.style.display = 'none';
+            elements.vncContainer.style.display = 'block';
+
+            console.log('✅ [VNC Client] noVNC loaded successfully');
+        }
+
+        /**
+         * Update loading text
+         */
+        function updateLoadingText(text, subtext = '请稍候') {
+            elements.loadingText.textContent = text;
+            elements.loadingSubtext.textContent = subtext;
+        }
+
+        /**
+         * Handle initialization errors
+         */
+        function handleInitError(error) {
+            const errorMsg = error.message || '未知错误';
+
+            if (errorMsg.includes('401') || errorMsg.includes('403') || errorMsg.includes('认证')) {
+                showError('认证失败', '您的登录状态已过期，请重新登录', true);
+            } else if (errorMsg.includes('404')) {
+                showError('虚拟机不存在', '未找到指定的虚拟机，可能已被删除或您没有访问权限');
+            } else if (errorMsg.includes('500')) {
+                showError('服务器错误', '服务器处理请求时发生错误，请稍后重试');
+            } else if (errorMsg.includes('timeout') || errorMsg.includes('network')) {
+                showError('网络错误', '无法连接到服务器，请检查网络连接后重试');
             } else {
-                Utils.showError('未连接到远程桌面');
+                showError('连接失败', errorMsg);
             }
-        };
-        
-        window.disconnect = function() {
-            if (confirm('确定要断开连接吗？')) {
-                if (rfb) {
-                    rfb.disconnect();
-                }
-                stopPingTest();
+        }
+
+        /**
+         * Show error message
+         */
+        function showError(title, message, redirectToLogin = false) {
+            elements.errorMessage.innerHTML = `<strong>${title}</strong><br>${message}`;
+            elements.loadingContainer.style.display = 'none';
+            elements.errorContainer.style.display = 'flex';
+
+            if (redirectToLogin) {
                 setTimeout(() => {
-                    window.location.href = '/dashboard.html';
-                }, 1000);
+                    window.location.href = '/index.html';
+                }, CONFIG.REDIRECT_DELAY);
             }
-        };
-        
-        window.toggleFullscreen = function() {
-            const elem = document.getElementById('vnc-container');
-            
-            if (!document.fullscreenElement) {
-                elem.requestFullscreen().catch(err => {
-                    Utils.showError('无法进入全屏模式');
-                });
-            } else {
-                document.exitFullscreen();
-            }
-        };
-        
-        window.toggleControlPanel = function() {
-            document.getElementById('controlPanel').classList.toggle('open');
-        };
-        
-        window.updateScaling = function() {
-            if (!rfb) return;
-            
-            const mode = document.getElementById('scalingMode').value;
-            switch (mode) {
-                case 'off':
-                    rfb.scaleViewport = false;
-                    rfb.resizeSession = false;
-                    break;
-                case 'scale':
-                    rfb.scaleViewport = true;
-                    rfb.resizeSession = false;
-                    break;
-                case 'remote':
-                    rfb.scaleViewport = false;
-                    rfb.resizeSession = true;
-                    break;
-            }
-        };
-        
-        window.updateQuality = function() {
-            if (!rfb) return;
-            rfb.qualityLevel = parseInt(document.getElementById('quality').value);
-        };
-        
-        window.updateCompression = function() {
-            if (!rfb) return;
-            rfb.compressionLevel = parseInt(document.getElementById('compression').value);
-        };
-        
-        window.updateViewOnly = function() {
-            if (!rfb) return;
-            rfb.viewOnly = document.getElementById('viewOnly').checked;
-        };
-        
-        window.updateClipboard = function() {
-            // 剪贴板同步设置会在handleClipboard中使用
-        };
-        
-        // 页面加载完成后初始化
-        document.addEventListener('DOMContentLoaded', () => {
-            initVNC();
-        });
-        
-        // 监听键盘快捷键
-        document.addEventListener('keydown', (e) => {
-            // F11 全屏
-            if (e.key === 'F11') {
-                e.preventDefault();
-                toggleFullscreen();
-            }
-        });
-        
-        // 页面卸载时清理
-        window.addEventListener('beforeunload', () => {
-            if (rfb) {
-                rfb.disconnect();
-            }
-            stopPingTest();
+        }
+
+        /**
+         * Go back to dashboard
+         */
+        function goBack() {
+            window.location.href = '/dashboard.html';
+        }
+
+        // Handle iframe errors
+        elements.vncIframe.addEventListener('error', (e) => {
+            console.error('❌ [VNC Client] iframe load error:', e);
+            showError('加载失败', 'noVNC 客户端加载失败，请刷新页面重试');
         });
     </script>
 </body>
