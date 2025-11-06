@@ -109,8 +109,14 @@
             // Build URL with fragment parameters (not sent to server)
             const params = new URLSearchParams();
 
-            // Set the WebSocket path (full URL with token)
-            params.set('path', vncInfo.websocketUrl + `?token=${token}`);
+            // Extract path from WebSocket URL (noVNC will add ws:// automatically)
+            // vncInfo.websocketUrl = "ws://localhost:3000/vnc/xxx"
+            // We need only the path part: "/vnc/xxx"
+            const wsUrl = new URL(vncInfo.websocketUrl);
+            const pathWithToken = wsUrl.pathname + `?token=${token}`;
+
+            console.log('WebSocket path for noVNC:', pathWithToken);
+            params.set('path', pathWithToken);
 
             // Set password
             if (vncInfo.password) {
