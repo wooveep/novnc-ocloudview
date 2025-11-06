@@ -240,16 +240,25 @@
                 }
                 
                 const vncInfo = result.data;
-                
+
+                console.log('📊 VNC Info from API:', {
+                    host: vncInfo.host,
+                    port: vncInfo.port,
+                    hasPassword: !!vncInfo.password,
+                    passwordLength: vncInfo.password ? vncInfo.password.length : 0,
+                    passwordPreview: vncInfo.password ? vncInfo.password.substring(0, 3) + '***' : 'null'
+                });
+
                 // 更新VM名称
                 document.getElementById('vmName').textContent = vncInfo.vmName || `VM-${vmId}`;
-                
+
                 // 构建WebSocket URL
                 const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
                 const wsUrl = `${protocol}://${window.location.host}/vnc/${vmId}?token=${token}`;
-                
+
                 console.log('Connecting to:', wsUrl);
-                
+                console.log('Using password:', vncInfo.password ? '***' + vncInfo.password.slice(-3) : 'NO PASSWORD');
+
                 // 创建RFB连接
                 rfb = new RFB(
                     document.getElementById('vnc-screen'),
@@ -261,6 +270,8 @@
                         wsProtocols: ['binary'],
                     }
                 );
+
+                console.log('✅ RFB instance created with credentials');
                 
                 // 设置RFB事件处理
                 rfb.addEventListener('connect', handleConnect);
