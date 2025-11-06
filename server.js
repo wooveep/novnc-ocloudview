@@ -56,6 +56,7 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.jsdelivr.net"],
+      scriptSrcAttr: ["'unsafe-inline'"],  // 允许内联事件处理器
       styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
       imgSrc: ["'self'", "data:", "blob:"],
       connectSrc: ["'self'", "ws:", "wss:"],
@@ -664,6 +665,22 @@ app.get('/api/vnc/connect/:vmId', authMiddleware, async (req, res) => {
       passwordLength: vncInfo.password ? vncInfo.password.length : 0,
       passwordPreview: vncInfo.password ? vncInfo.password.substring(0, 3) + '***' : 'null'
     });
+
+    // 缓存 VNC 连接信息到 session（包括密码）
+    // 这样 WebSocket 连接时可以使用相同的密码
+    const sessionData = sessionStore.get(req.user.sessionId);
+    if (sessionData) {
+      if (!sessionData.vncConnections) {
+        sessionData.vncConnections = new Map();
+      }
+      sessionData.vncConnections.set(vmId, {
+        host: vncInfo.host,
+        port: vncInfo.port,
+        password: vncInfo.password,
+        timestamp: Date.now(),
+      });
+      console.log(`✅ VNC info cached in session for VM ${vmId}`);
+    }
 
     // 生成 WebSocket URL
     const wsProtocol = req.secure ? 'wss' : 'ws';
