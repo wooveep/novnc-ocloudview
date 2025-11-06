@@ -62,6 +62,8 @@ app.use(helmet({
       connectSrc: ["'self'", "ws:", "wss:"],
     },
   },
+  crossOriginOpenerPolicy: false,  // 禁用 COOP，避免 HTTP 环境下的警告
+  crossOriginResourcePolicy: { policy: "cross-origin" },  // 允许跨域资源
 }));
 
 app.use(cors(config.cors));
