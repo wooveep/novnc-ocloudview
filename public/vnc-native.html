@@ -46,19 +46,21 @@
     </div>
 
     <script>
-        // Get VM ID from URL parameters
+        // Get VM ID and token from URL parameters
         const urlParams = new URLSearchParams(window.location.search);
         const vmId = urlParams.get('id');
-        const token = localStorage.getItem('token');
+        // Try to get token from URL first, then fall back to localStorage
+        const token = urlParams.get('token') || localStorage.getItem('token');
 
         console.log('🚀 Initializing VNC connection for VM:', vmId);
+        console.log('Token source:', urlParams.get('token') ? 'URL parameter' : 'localStorage');
 
         if (!vmId) {
             showError('VM ID not provided in URL');
         } else if (!token) {
             showError('Not authenticated. Please login first.');
             setTimeout(() => {
-                window.location.href = '/login.html';
+                window.location.href = '/index.html';
             }, 2000);
         } else {
             initializeVNC();
