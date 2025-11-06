@@ -651,10 +651,20 @@ app.post('/api/vm/:id/restart', authMiddleware, async (req, res) => {
 app.get('/api/vnc/connect/:vmId', authMiddleware, async (req, res) => {
   try {
     const vmId = req.params.vmId;
-    
+
+    console.log(`📞 VNC connect request for VM: ${vmId}`);
+
     // 获取完整的VNC连接信息
     const vncInfo = await ocloudviewService.getCompleteVNCInfo(req.ocloudToken, vmId);
-    
+
+    console.log(`📊 VNC Info retrieved:`, {
+      host: vncInfo.host,
+      port: vncInfo.port,
+      hasPassword: !!vncInfo.password,
+      passwordLength: vncInfo.password ? vncInfo.password.length : 0,
+      passwordPreview: vncInfo.password ? vncInfo.password.substring(0, 3) + '***' : 'null'
+    });
+
     // 生成 WebSocket URL
     const wsProtocol = req.secure ? 'wss' : 'ws';
     const wsHost = req.get('host');
@@ -669,7 +679,7 @@ app.get('/api/vnc/connect/:vmId', authMiddleware, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Get VNC connection error:', error);
+    console.error('❌ Get VNC connection error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to get VNC connection',
