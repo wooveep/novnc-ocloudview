@@ -9,5 +9,5 @@
   "resize": "scale",
   "quality": 6,
   "compression": 2,
-  "logging": "warn"
+  "logging": "info"
 }
