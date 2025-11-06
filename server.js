@@ -761,9 +761,12 @@ app.use((err, req, res, next) => {
 const server = http.createServer(app);
 
 // 创建WebSocket服务器
+// Note: 不指定 path，以便接受所有路径的 WebSocket 连接
+// 然后在连接处理器中进行路径验证
 const wss = new WebSocket.Server({
   server,
-  path: config.websocket.path,
+  noServer: false,
+  // 移除 path 限制，允许 /vnc/* 格式的路径
 });
 
 // 初始化WebsockifyProxy (基于websockify-js架构)
