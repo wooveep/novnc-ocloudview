@@ -20,10 +20,42 @@ VNC 服务器 (OcloudView 平台)
 
 #### 本地化部署
 - **位置**: `public/novnc/`
-- **核心库**: `public/novnc/core/` (来自 @novnc/novnc npm 包)
+- **核心库**: `public/novnc/core/` (来自 noVNC GitHub v1.5.0 源码)
+- **依赖库**: `public/novnc/vendor/` (pako 压缩库)
 - **配置文件**:
   - `public/novnc/defaults.json` - 默认配置
   - `public/novnc/mandatory.json` - 强制配置
+
+#### ⚠️ 重要说明：ES6 模块 vs CommonJS
+
+**问题**：
+npm 包 `@novnc/novnc` 包含的是经过 Babel 转译的 CommonJS 模块，不能直接在浏览器中作为 ES6 模块使用。
+
+**错误示例**：
+```
+Uncaught SyntaxError: The requested module '/novnc/core/rfb.js'
+does not provide an export named 'default'
+```
+
+**解决方案**：
+使用 noVNC GitHub 仓库的原始 ES6 源码（未转译版本）：
+
+```bash
+# 从 GitHub 获取 ES6 源码
+git clone --depth 1 --branch v1.5.0 https://github.com/novnc/noVNC.git
+cp -r noVNC/core public/novnc/
+cp -r noVNC/vendor public/novnc/
+```
+
+**区别对比**：
+
+| 特性 | npm 包 | GitHub 源码 |
+|------|--------|-------------|
+| 模块格式 | CommonJS (Babel转译) | ES6 原生模块 |
+| 导出方式 | `exports["default"]` | `export default` |
+| 浏览器兼容 | ❌ 需要打包工具 | ✅ 原生支持 |
+| import 语法 | ❌ 不支持 | ✅ 完全支持 |
+| 文件大小 | 更大（包含polyfill） | 更小（原生代码） |
 
 #### 前端页面更新
 - **文件**: `public/vnc.html`
