@@ -13,7 +13,6 @@ const net = require('net');
 const { body, param, query, validationResult } = require('express-validator');
 const rateLimit = require('express-rate-limit');
 const WebsockifyProxy = require('./lib/websockify-proxy');
-const { handleVNCConnection } = require('./lib/websocket-handler');
 require('dotenv').config();
 
 // ===== 配置 =====
@@ -756,37 +755,274 @@ app.use((err, req, res, next) => {
   });
 });
 
+// ===== WebSocket 代理 =====
+class WebSocketProxy {
+  constructor(wss) {
+    this.wss = wss;
+    this.connections = new Map();
+    this.heartbeatInterval = null;
+    this.startHeartbeat();
+  }
+
+  async handleConnection(ws, vmId, req) {
+    console.log(`🔌 New VNC WebSocket connection for VM: ${vmId}`);
+
+    try {
+      const token = this.extractToken(req);
+      
+      if (!token) {
+        console.error('❌ No authentication token provided');
+        ws.send(JSON.stringify({ error: 'Authentication required' }));
+        ws.close(1008, 'Authentication required');
+        return;
+      }
+
+      const vncInfo = await this.verifyAndGetVNCInfo(token, vmId);
+      
+      if (!vncInfo) {
+        console.error('❌ Failed to get VNC connection info');
+        ws.send(JSON.stringify({ error: 'Failed to connect to VM' }));
+        ws.close(1008, 'Connection failed');
+        return;
+      }
+
+      const vncConnection = this.createVNCConnection(vncInfo);
+      this.setupProxy(ws, vncConnection, vmId);
+      
+      this.connections.set(vmId, {
+        ws,
+        vncConnection,
+        startTime: Date.now(),
+        lastActivity: Date.now(),
+      });
+
+    } catch (error) {
+      console.error('❌ WebSocket connection error:', error);
+      ws.send(JSON.stringify({ error: error.message }));
+      ws.close(1011, 'Internal error');
+    }
+  }
+
+  extractToken(req) {
+    const urlParams = new URLSearchParams(req.url.split('?')[1]);
+    const queryToken = urlParams.get('token');
+    if (queryToken) return queryToken;
+
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      return authHeader.substring(7);
+    }
+
+    return null;
+  }
+
+  async verifyAndGetVNCInfo(token, vmId) {
+    try {
+      // 验证JWT令牌
+      const decoded = jwt.verify(token, config.jwt.secret);
+      
+      // 如果是VNC专用令牌
+      if (decoded.vmId && decoded.ocloudToken) {
+        // 使用存储的 OcloudView token 获取最新的VNC信息
+        return await ocloudviewService.getCompleteVNCInfo(decoded.ocloudToken, vmId);
+      }
+      
+      // 如果是用户令牌，从会话中获取信息
+      if (decoded.sessionId) {
+        const sessionData = sessionStore.get(decoded.sessionId);
+        if (sessionData) {
+          return await ocloudviewService.getCompleteVNCInfo(sessionData.ocloudToken, vmId);
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Token verification error:', error);
+      return null;
+    }
+  }
+
+  createVNCConnection(vncInfo) {
+    const { host, port } = vncInfo;
+    console.log(`📡 Connecting to VNC server: ${host}:${port}`);
+    
+    const connection = net.createConnection({
+      host,
+      port,
+      timeout: config.vnc.connectionTimeout,
+    });
+
+    connection.on('connect', () => {
+      console.log(`✅ Connected to VNC server: ${host}:${port}`);
+    });
+
+    connection.on('error', (error) => {
+      console.error(`❌ VNC connection error: ${error.message}`);
+    });
+
+    connection.on('timeout', () => {
+      console.error(`⏱️ VNC connection timeout`);
+      connection.destroy();
+    });
+
+    return connection;
+  }
+
+  setupProxy(ws, vncConnection, vmId) {
+    let isAlive = true;
+
+    ws.on('pong', () => {
+      isAlive = true;
+      this.updateActivity(vmId);
+    });
+
+    ws.on('message', (data) => {
+      try {
+        this.updateActivity(vmId);
+        
+        if (Buffer.isBuffer(data)) {
+          vncConnection.write(data);
+        } else {
+          const message = JSON.parse(data.toString());
+          this.handleControlMessage(message, ws, vncConnection);
+        }
+      } catch (error) {
+        console.error('WebSocket message error:', error);
+        vncConnection.write(Buffer.from(data));
+      }
+    });
+
+    vncConnection.on('data', (data) => {
+      try {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(data);
+          this.updateActivity(vmId);
+        }
+      } catch (error) {
+        console.error('VNC data forwarding error:', error);
+      }
+    });
+
+    ws.on('close', () => {
+      console.log(`🔌 WebSocket closed for VM: ${vmId}`);
+      vncConnection.end();
+      this.connections.delete(vmId);
+    });
+
+    ws.on('error', (error) => {
+      console.error(`WebSocket error for VM ${vmId}:`, error);
+      vncConnection.end();
+      this.connections.delete(vmId);
+    });
+
+    vncConnection.on('close', () => {
+      console.log(`📡 VNC connection closed for VM: ${vmId}`);
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close(1000, 'VNC connection closed');
+      }
+      this.connections.delete(vmId);
+    });
+
+    vncConnection.on('error', (error) => {
+      console.error(`VNC error for VM ${vmId}:`, error);
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close(1011, 'VNC connection error');
+      }
+      this.connections.delete(vmId);
+    });
+
+    ws.isAlive = isAlive;
+  }
+
+  handleControlMessage(message, ws, vncConnection) {
+    switch (message.type) {
+      case 'resize':
+        console.log(`Screen resize request: ${message.width}x${message.height}`);
+        break;
+      case 'quality':
+        console.log(`Quality adjustment: ${message.quality}`);
+        break;
+      case 'clipboard':
+        console.log(`Clipboard sync: ${message.data}`);
+        break;
+      default:
+        vncConnection.write(Buffer.from(JSON.stringify(message)));
+    }
+  }
+
+  updateActivity(vmId) {
+    const connection = this.connections.get(vmId);
+    if (connection) {
+      connection.lastActivity = Date.now();
+    }
+  }
+
+  startHeartbeat() {
+    this.heartbeatInterval = setInterval(() => {
+      this.connections.forEach((connection, vmId) => {
+        const ws = connection.ws;
+        
+        if (ws.isAlive === false) {
+          console.log(`💔 Terminating inactive connection for VM: ${vmId}`);
+          ws.terminate();
+          connection.vncConnection.end();
+          this.connections.delete(vmId);
+          return;
+        }
+
+        ws.isAlive = false;
+        ws.ping();
+      });
+    }, config.websocket.heartbeat.interval);
+  }
+
+  stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+  }
+
+  cleanup() {
+    console.log('🧹 Cleaning up WebSocket proxy...');
+    this.stopHeartbeat();
+    
+    this.connections.forEach((connection, vmId) => {
+      console.log(`Closing connection for VM: ${vmId}`);
+      connection.ws.close(1000, 'Server shutdown');
+      connection.vncConnection.end();
+    });
+    
+    this.connections.clear();
+  }
+}
 
 // ===== 服务器启动 =====
 const server = http.createServer(app);
 
 // 创建WebSocket服务器
-const wss = new WebSocket.Server({
+const wss = new WebSocket.Server({ 
   server,
   path: config.websocket.path,
 });
 
-// 初始化WebsockifyProxy (基于websockify-js架构)
-const wsProxy = new WebsockifyProxy({
-  wss,
-  heartbeatTimeout: config.websocket.heartbeat.interval,
-  connectionTimeout: config.vnc.connectionTimeout,
-  maxConnections: 100
-});
-
-console.log('🔌 WebsockifyProxy initialized (based on websockify-js architecture)');
+// 初始化WebSocket代理
+const wsProxy = new WebSocketProxy(wss);
 
 // WebSocket连接处理
 wss.on('connection', (ws, req) => {
   console.log(`📱 New WebSocket connection from ${req.socket.remoteAddress}`);
+  
+  const urlParts = req.url.split('/');
+  const vmId = urlParts[urlParts.length - 1].split('?')[0];
+  
+  if (!vmId) {
+    console.error('❌ No VM ID provided in WebSocket connection');
+    ws.close(1002, 'VM ID required');
+    return;
+  }
 
-  // 使用新的连接处理器
-  handleVNCConnection(ws, req, {
-    wsProxy,
-    config,
-    ocloudviewService,
-    sessionStore
-  });
+  wsProxy.handleConnection(ws, vmId, req);
 });
 
 wss.on('error', (error) => {
@@ -811,15 +1047,12 @@ server.listen(PORT, () => {
 });
 
 // 优雅关闭处理
-const gracefulShutdown = async (signal) => {
+const gracefulShutdown = (signal) => {
   console.log(`\n📴 ${signal} received, starting graceful shutdown...`);
-
-  // 关闭 WebSocket 代理和所有连接
-  await wsProxy.shutdown();
-
+  
   // 清理会话存储
   sessionStore.clear();
-
+  
   wss.close(() => {
     console.log('✅ WebSocket server closed');
   });
