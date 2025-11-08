@@ -284,12 +284,28 @@ class OcloudviewService {
       console.log(`🔄 [SPICE API] Fetching connection info for VM: ${vmId}`);
       console.log(`   Token preview: ${token ? token.substring(0, 20) + '...' : 'null'}`);
 
+      // SPICE 个性化配置（默认配置）
+      const defaultPersonConfig = {
+        bandwidthLimit: 12,      // 带宽限制
+        frameRate: 25,           // 帧率
+        spiceDecodePixFormat: 1, // 解码像素格式
+        spiceDecodeType: 1,      // 解码类型
+        spiceEncodeFormat: 0,    // 编码格式
+        spiceGameMode: 1,        // 游戏模式
+        spiceMouseMode: 0        // 鼠标模式
+      };
+
       const requestData = {
         connectType: 'ocloudview',
+        personConfig: JSON.stringify(defaultPersonConfig),
         uuid: vmId,
       };
 
-      console.log(`   Request data:`, requestData);
+      console.log(`   Request data:`, {
+        connectType: requestData.connectType,
+        uuid: requestData.uuid,
+        personConfig: defaultPersonConfig
+      });
 
       const response = await this.client.post('/ocloud/usermodule/get-connection-info',
         requestData,
