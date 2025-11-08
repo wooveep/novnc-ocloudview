@@ -970,7 +970,7 @@ function handle_draw_jpeg_onload()
 
     if (temp_canvas == null)
     {
-        if (Utils.DUMP_DRAWS && this.o.sc.parent.dump_id)
+        if (Utils.DUMP_DRAWS && this.o.sc.parent && this.o.sc.parent.dump_id)
         {
             var debug_canvas = document.createElement("canvas");
             debug_canvas.setAttribute('id', this.o.tag + "." +
@@ -983,12 +983,19 @@ function handle_draw_jpeg_onload()
         this.o.sc.surfaces[this.o.base.surface_id].draw_count++;
     }
 
-    if (this.o.sc.streams[this.o.id] && "report" in this.o.sc.streams[this.o.id])
+    if ("streams" in this.o.sc && this.o.sc.streams[this.o.id] && "report" in this.o.sc.streams[this.o.id] && this.o.sc.parent)
         process_stream_data_report(this.o.sc, this.o.id, this.o.msg_mmtime, this.o.msg_mmtime - this.o.sc.parent.relative_now());
 }
 
 function process_mjpeg_stream_data(sc, m, time_until_due)
 {
+    // Validate streams exists
+    if (!sc.streams || !sc.streams[m.base.id])
+    {
+        Utils.DEBUG > 0 && console.log("Discarding mjpeg stream data; stream not found:", m.base.id);
+        return;
+    }
+
     /* If we are currently processing an mjpeg frame when a new one arrives,
        and the new one is 'late', drop the new frame.  This helps the browsers
        keep up, and provides rate control feedback as well */
@@ -1029,6 +1036,13 @@ function process_mjpeg_stream_data(sc, m, time_until_due)
 
 function process_stream_data_report(sc, id, msg_mmtime, time_until_due)
 {
+    // Validate streams and report exists
+    if (!sc.streams || !sc.streams[id] || !sc.streams[id].report)
+    {
+        Utils.DEBUG > 0 && console.log("Cannot process stream data report; stream or report not found:", id);
+        return;
+    }
+
     sc.streams[id].report.num_frames++;
     if (sc.streams[id].report.start_frame_mm_time == 0)
         sc.streams[id].report.start_frame_mm_time = msg_mmtime;
