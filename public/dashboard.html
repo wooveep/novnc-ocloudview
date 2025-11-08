@@ -58,10 +58,129 @@
         </div>
     </div>
 
+    <!-- Connection Type Selector Modal -->
+    <div class="modal-overlay" id="connectionModal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0; font-size: 20px; color: #333;">选择连接方式</h2>
+                <button onclick="closeConnectionModal()" style="background: none; border: none; font-size: 24px; color: #999; cursor: pointer; padding: 0; line-height: 1;">&times;</button>
+            </div>
+
+            <p style="color: #666; margin-bottom: 25px; font-size: 14px;">
+                请选择您希望使用的远程桌面协议
+            </p>
+
+            <div style="display: grid; gap: 15px;">
+                <div class="connection-option" onclick="connectWithProtocol('vnc')" style="cursor: pointer; padding: 20px; border: 2px solid #e0e0e0; border-radius: 10px; transition: all 0.3s; display: flex; align-items: start; gap: 15px;">
+                    <div style="font-size: 32px; line-height: 1;">🖥️</div>
+                    <div style="flex: 1;">
+                        <div style="font-size: 16px; font-weight: 600; color: #333; margin-bottom: 5px;">VNC (noVNC)</div>
+                        <div style="font-size: 13px; color: #666; line-height: 1.5;">
+                            通过 Web 浏览器访问虚拟机桌面，支持图像压缩和质量调整
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <span style="display: inline-block; padding: 3px 10px; background: #e3f2fd; color: #1976d2; border-radius: 12px; font-size: 11px; font-weight: 500;">推荐</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="connection-option" onclick="connectWithProtocol('spice')" style="cursor: pointer; padding: 20px; border: 2px solid #e0e0e0; border-radius: 10px; transition: all 0.3s; display: flex; align-items: start; gap: 15px;">
+                    <div style="font-size: 32px; line-height: 1;">⚡</div>
+                    <div style="flex: 1;">
+                        <div style="font-size: 16px; font-weight: 600; color: #333; margin-bottom: 5px;">SPICE (spice-html5)</div>
+                        <div style="font-size: 13px; color: #666; line-height: 1.5;">
+                            高性能远程显示协议，提供更好的音频和图像质量
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <span style="display: inline-block; padding: 3px 10px; background: #fff3e0; color: #f57c00; border-radius: 12px; font-size: 11px; font-weight: 500;">高性能</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                <button class="btn" onclick="closeConnectionModal()" style="width: 100%;">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            max-width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .connection-option:hover {
+            border-color: #667eea !important;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+            transform: translateY(-2px);
+        }
+    </style>
+
     <script src="/js/api.js"></script>
     <script>
         let vms = [];
-        
+        let selectedVmId = null;
+
+        // 显示连接选择器模态框
+        function showConnectionModal(vmId) {
+            selectedVmId = vmId;
+            document.getElementById('connectionModal').style.display = 'flex';
+        }
+
+        // 关闭连接选择器模态框
+        function closeConnectionModal() {
+            selectedVmId = null;
+            document.getElementById('connectionModal').style.display = 'none';
+        }
+
+        // 使用指定协议连接
+        async function connectWithProtocol(protocol) {
+            if (!selectedVmId) return;
+
+            closeConnectionModal();
+            Utils.showLoading('正在建立连接...');
+
+            try {
+                if (protocol === 'vnc') {
+                    const result = await API.vnc.connect(selectedVmId);
+
+                    if (result.success) {
+                        // 跳转到VNC页面
+                        window.location.href = `/vnc.html?id=${selectedVmId}&token=${Utils.getToken()}`;
+                    } else {
+                        throw new Error(result.message || 'VNC连接失败');
+                    }
+                } else if (protocol === 'spice') {
+                    // 跳转到SPICE页面
+                    window.location.href = `/spice.html?id=${selectedVmId}&token=${Utils.getToken()}`;
+                }
+            } catch (error) {
+                console.error('Connect VM error:', error);
+                Utils.showError('连接虚拟机失败: ' + error.message);
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
         // 加载虚拟机列表
         async function loadVMs() {
             Utils.showLoading('正在加载虚拟机列表...');
@@ -174,24 +293,9 @@
         }
         
         // 连接虚拟机
-        async function connectVM(vmId) {
-            Utils.showLoading('正在建立连接...');
-            
-            try {
-                const result = await API.vnc.connect(vmId);
-                
-                if (result.success) {
-                    // 跳转到VNC页面
-                    window.location.href = `/vnc.html?id=${vmId}&token=${Utils.getToken()}`;
-                } else {
-                    throw new Error(result.message || '连接失败');
-                }
-            } catch (error) {
-                console.error('Connect VM error:', error);
-                Utils.showError('连接虚拟机失败: ' + error.message);
-            } finally {
-                Utils.hideLoading();
-            }
+        function connectVM(vmId) {
+            // 显示连接方式选择器
+            showConnectionModal(vmId);
         }
         
         // 启动虚拟机
