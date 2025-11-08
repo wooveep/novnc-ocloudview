@@ -17,6 +17,7 @@
                 <span style="color: #666; font-size: 14px;">
                     👤 <span id="currentUser">-</span>
                 </span>
+                <button class="btn" onclick="showSettingsModal()" style="background: #f5f5f5; color: #333;">⚙️ 设置</button>
                 <button class="btn btn-danger" onclick="logout()">退出登录</button>
             </div>
         </div>
@@ -71,19 +72,6 @@
             </p>
 
             <div style="display: grid; gap: 15px;">
-                <div class="connection-option" onclick="connectWithProtocol('vnc')" style="cursor: pointer; padding: 20px; border: 2px solid #e0e0e0; border-radius: 10px; transition: all 0.3s; display: flex; align-items: start; gap: 15px;">
-                    <div style="font-size: 32px; line-height: 1;">🖥️</div>
-                    <div style="flex: 1;">
-                        <div style="font-size: 16px; font-weight: 600; color: #333; margin-bottom: 5px;">VNC (noVNC)</div>
-                        <div style="font-size: 13px; color: #666; line-height: 1.5;">
-                            通过 Web 浏览器访问虚拟机桌面，支持图像压缩和质量调整
-                        </div>
-                        <div style="margin-top: 8px;">
-                            <span style="display: inline-block; padding: 3px 10px; background: #e3f2fd; color: #1976d2; border-radius: 12px; font-size: 11px; font-weight: 500;">推荐</span>
-                        </div>
-                    </div>
-                </div>
-
                 <div class="connection-option" onclick="connectWithProtocol('spice')" style="cursor: pointer; padding: 20px; border: 2px solid #e0e0e0; border-radius: 10px; transition: all 0.3s; display: flex; align-items: start; gap: 15px;">
                     <div style="font-size: 32px; line-height: 1;">⚡</div>
                     <div style="flex: 1;">
@@ -92,7 +80,17 @@
                             高性能远程显示协议，提供更好的音频和图像质量
                         </div>
                         <div style="margin-top: 8px;">
-                            <span style="display: inline-block; padding: 3px 10px; background: #fff3e0; color: #f57c00; border-radius: 12px; font-size: 11px; font-weight: 500;">高性能</span>
+                            <span style="display: inline-block; padding: 3px 10px; background: #e3f2fd; color: #1976d2; border-radius: 12px; font-size: 11px; font-weight: 500;">推荐</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="connection-option" onclick="connectWithProtocol('vnc')" style="cursor: pointer; padding: 20px; border: 2px solid #e0e0e0; border-radius: 10px; transition: all 0.3s; display: flex; align-items: start; gap: 15px;">
+                    <div style="font-size: 32px; line-height: 1;">🖥️</div>
+                    <div style="flex: 1;">
+                        <div style="font-size: 16px; font-weight: 600; color: #333; margin-bottom: 5px;">VNC (noVNC)</div>
+                        <div style="font-size: 13px; color: #666; line-height: 1.5;">
+                            通过 Web 浏览器访问虚拟机桌面，支持图像压缩和质量调整
                         </div>
                     </div>
                 </div>
@@ -100,6 +98,52 @@
 
             <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
                 <button class="btn" onclick="closeConnectionModal()" style="width: 100%;">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0; font-size: 20px; color: #333;">连接设置</h2>
+                <button onclick="closeSettingsModal()" style="background: none; border: none; font-size: 24px; color: #999; cursor: pointer; padding: 0; line-height: 1;">&times;</button>
+            </div>
+
+            <div style="margin-bottom: 25px;">
+                <label style="display: block; font-size: 14px; color: #333; font-weight: 600; margin-bottom: 15px;">
+                    默认连接方式
+                </label>
+                <p style="font-size: 13px; color: #666; margin-bottom: 15px; line-height: 1.5;">
+                    选择点击"连接桌面"时使用的默认协议。您仍然可以在连接时手动选择其他协议。
+                </p>
+                <div style="display: grid; gap: 12px;">
+                    <label style="cursor: pointer; padding: 15px; border: 2px solid #e0e0e0; border-radius: 8px; display: flex; align-items: center; gap: 12px; transition: all 0.2s;">
+                        <input type="radio" name="defaultProtocol" value="spice" onchange="saveDefaultProtocol('spice')" style="width: 18px; height: 18px; cursor: pointer;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: #333; margin-bottom: 3px;">⚡ SPICE (推荐)</div>
+                            <div style="font-size: 12px; color: #666;">高性能远程显示协议</div>
+                        </div>
+                    </label>
+                    <label style="cursor: pointer; padding: 15px; border: 2px solid #e0e0e0; border-radius: 8px; display: flex; align-items: center; gap: 12px; transition: all 0.2s;">
+                        <input type="radio" name="defaultProtocol" value="vnc" onchange="saveDefaultProtocol('vnc')" style="width: 18px; height: 18px; cursor: pointer;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: #333; margin-bottom: 3px;">🖥️ VNC</div>
+                            <div style="font-size: 12px; color: #666;">Web浏览器远程桌面</div>
+                        </div>
+                    </label>
+                    <label style="cursor: pointer; padding: 15px; border: 2px solid #e0e0e0; border-radius: 8px; display: flex; align-items: center; gap: 12px; transition: all 0.2s;">
+                        <input type="radio" name="defaultProtocol" value="ask" onchange="saveDefaultProtocol('ask')" style="width: 18px; height: 18px; cursor: pointer;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: #333; margin-bottom: 3px;">❓ 每次询问</div>
+                            <div style="font-size: 12px; color: #666;">连接时手动选择协议</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-primary" onclick="closeSettingsModal()" style="flex: 1;">保存</button>
             </div>
         </div>
     </div>
@@ -156,6 +200,22 @@
         function closeConnectionModal() {
             // 不要立即清空 selectedVmId，等到连接完成后再清
             document.getElementById('connectionModal').style.display = 'none';
+        }
+
+        // 显示设置模态框
+        function showSettingsModal() {
+            // 加载当前设置
+            const defaultProtocol = getDefaultProtocol();
+            const radioButton = document.querySelector(`input[name="defaultProtocol"][value="${defaultProtocol}"]`);
+            if (radioButton) {
+                radioButton.checked = true;
+            }
+            document.getElementById('settingsModal').style.display = 'flex';
+        }
+
+        // 关闭设置模态框
+        function closeSettingsModal() {
+            document.getElementById('settingsModal').style.display = 'none';
         }
 
         // 使用指定协议连接
@@ -318,9 +378,6 @@
                     <button class="btn btn-primary" style="flex: 1;" onclick="connectVM('${vm.id}')">
                         连接桌面
                     </button>
-                    <button class="btn btn-danger" style="flex: 1;" onclick="stopVM('${vm.id}')">
-                        停止
-                    </button>
                 `;
             } else if (vm.status === 'stopped' || vm.status === 'shutoff') {
                 return `
@@ -337,10 +394,31 @@
             }
         }
         
+        // 获取默认连接协议
+        function getDefaultProtocol() {
+            const saved = localStorage.getItem('defaultProtocol');
+            return saved || 'spice'; // 默认使用 SPICE
+        }
+
+        // 保存默认连接协议
+        function saveDefaultProtocol(protocol) {
+            localStorage.setItem('defaultProtocol', protocol);
+            console.log('💾 Default protocol saved:', protocol);
+        }
+
         // 连接虚拟机
         function connectVM(vmId) {
-            // 显示连接方式选择器
-            showConnectionModal(vmId);
+            const defaultProtocol = getDefaultProtocol();
+            console.log('🔌 connectVM called:', { vmId, defaultProtocol });
+
+            if (defaultProtocol === 'ask') {
+                // 显示连接方式选择器
+                showConnectionModal(vmId);
+            } else {
+                // 直接使用默认协议连接
+                selectedVmId = vmId;
+                connectWithProtocol(defaultProtocol);
+            }
         }
         
         // 启动虚拟机
