@@ -379,7 +379,15 @@ SpiceConn.prototype =
                     this.log_warn(this.channel_type() + ": Unknown message type " + msg.type + "!");
             }
             else
-                this.log_err(this.channel_type() + ": No message handlers for this channel; message " + msg.type);
+            {
+                // Suppress errors for known unimplemented channels (usbredir, record, webdav)
+                var channel_type = this.channel_type();
+                if (channel_type !== "usbredir" && channel_type !== "record" && channel_type !== "webdav")
+                {
+                    this.log_err(channel_type + ": No message handlers for this channel; message " + msg.type);
+                }
+                // Silently ignore messages for unimplemented optional channels
+            }
         }
 
         if (this.msgs_until_ack !== undefined && this.ack_window)
