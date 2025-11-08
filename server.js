@@ -278,6 +278,39 @@ class OcloudviewService {
     }
   }
 
+  // 获取SPICE连接信息
+  async getSPICEConnectionInfo(token, vmId) {
+    try {
+      const response = await this.client.post('/ocloud/usermodule/get-connection-info',
+        {
+          connectType: 'ocloudview',
+          uuid: vmId,
+        },
+        {
+          headers: { 'token_login': token },
+        }
+      );
+
+      const data = response.data;
+
+      if (data.returnCode !== 200) {
+        throw new Error(data.msg || '获取SPICE连接信息失败');
+      }
+
+      return {
+        hostIp: data.data.hostip || data.data.ip,
+        hostId: data.data.hostId,
+        vmName: data.data.name,
+        vmId: data.data.uuid,
+        spicePort: parseInt(data.data.spiceport),
+        spicePassword: data.data.key, // SPICE密码在key字段
+        domainIPs: data.data.list || [],
+      };
+    } catch (error) {
+      throw new Error('获取SPICE连接信息失败: ' + error.message);
+    }
+  }
+
   // 获取VNC端口
   async getVNCPort(token, vmId) {
     try {
@@ -286,7 +319,7 @@ class OcloudviewService {
       });
 
       const data = response.data;
-      
+
       if (data.status !== 0) {
         throw new Error(data.msg || '获取VNC端口失败');
       }
@@ -294,7 +327,7 @@ class OcloudviewService {
       // 从返回数据中查找VNC端口
       let vncPort = null;
       let spicePort = null;
-      
+
       if (data.data && Array.isArray(data.data)) {
         data.data.forEach(item => {
           if (item.type === 'vnc') {
@@ -714,10 +747,71 @@ app.get('/api/vnc/connect/:vmId', authMiddleware, async (req, res) => {
   }
 });
 
+// SPICE 连接接口
+app.get('/api/spice/connect/:vmId', authMiddleware, async (req, res) => {
+  try {
+    const vmId = req.params.vmId;
+
+    console.log(`📞 SPICE connect request for VM: ${vmId}`);
+
+    // 获取 SPICE 连接信息
+    const spiceInfo = await ocloudviewService.getSPICEConnectionInfo(req.ocloudToken, vmId);
+
+    console.log(`📊 SPICE Info retrieved:`, {
+      host: spiceInfo.hostIp,
+      port: spiceInfo.spicePort,
+      hasPassword: !!spiceInfo.spicePassword,
+      passwordLength: spiceInfo.spicePassword ? spiceInfo.spicePassword.length : 0,
+      passwordPreview: spiceInfo.spicePassword ? spiceInfo.spicePassword.substring(0, 8) + '***' : 'null'
+    });
+
+    // 缓存 SPICE 连接信息到 session（包括密码）
+    // 这样 WebSocket 连接时可以使用相同的密码
+    const sessionData = sessionStore.get(req.user.sessionId);
+    if (sessionData) {
+      if (!sessionData.spiceConnections) {
+        sessionData.spiceConnections = new Map();
+      }
+      sessionData.spiceConnections.set(vmId, {
+        host: spiceInfo.hostIp,
+        port: spiceInfo.spicePort,
+        password: spiceInfo.spicePassword,
+        timestamp: Date.now(),
+      });
+      console.log(`✅ SPICE info cached in session for VM ${vmId}`);
+    }
+
+    // 生成 WebSocket URL
+    const wsProtocol = req.secure ? 'wss' : 'ws';
+    const wsHost = req.get('host');
+    const wsUrl = `${wsProtocol}://${wsHost}/spice/${vmId}`;
+
+    res.json({
+      success: true,
+      data: {
+        host: spiceInfo.hostIp,
+        port: spiceInfo.spicePort,
+        password: spiceInfo.spicePassword,
+        vmId: spiceInfo.vmId,
+        vmName: spiceInfo.vmName,
+        websocketUrl: wsUrl,
+        protocol: 'spice',
+      },
+    });
+  } catch (error) {
+    console.error('❌ Get SPICE connection error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get SPICE connection',
+      message: error.message,
+    });
+  }
+});
+
 app.get('/api/vnc/token/:vmId', authMiddleware, async (req, res) => {
   try {
     const vmId = req.params.vmId;
-    
+
     // 生成VNC访问令牌
     const vncToken = jwt.sign(
       {
