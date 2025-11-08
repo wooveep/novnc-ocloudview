@@ -170,8 +170,23 @@
                         throw new Error(result.message || 'VNC连接失败');
                     }
                 } else if (protocol === 'spice') {
-                    // 跳转到SPICE页面
-                    window.location.href = `/spice.html?id=${selectedVmId}&token=${Utils.getToken()}`;
+                    // 调用 SPICE 连接 API
+                    const response = await fetch(`/api/spice/connect/${selectedVmId}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${Utils.getToken()}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        // 跳转到SPICE页面
+                        window.location.href = `/spice.html?id=${selectedVmId}&token=${Utils.getToken()}`;
+                    } else {
+                        throw new Error(result.message || 'SPICE连接失败');
+                    }
                 }
             } catch (error) {
                 console.error('Connect VM error:', error);
