@@ -100,7 +100,8 @@
 
         #spice-area {
             width: 100%;
-            height: 100%;
+            height: calc(100vh - 40px);
+            position: relative;
         }
 
         #spice-screen {
@@ -108,32 +109,51 @@
             height: 100%;
         }
 
+        /* Adjust when in fullscreen */
+        #spice-container:-webkit-full-screen #spice-area,
+        #spice-container:-moz-full-screen #spice-area,
+        #spice-container:fullscreen #spice-area {
+            height: 100vh;
+            padding-top: 40px;
+        }
+
         /* Control Panel Styles */
         #control-panel {
             position: fixed;
-            top: 10px;
-            right: 10px;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 10px;
-            border-radius: 8px;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 8px 15px;
             display: flex;
             gap: 10px;
+            align-items: center;
             z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }
 
         .control-button {
-            padding: 8px 16px;
+            padding: 6px 14px;
             background: #667eea;
             color: white;
             border: none;
             border-radius: 6px;
-            font-size: 14px;
+            font-size: 13px;
             cursor: pointer;
             transition: background-color 0.3s;
+            white-space: nowrap;
         }
 
         .control-button:hover {
             background: #5568d3;
+        }
+
+        .control-button.success {
+            background: #28a745;
+        }
+
+        .control-button.success:hover {
+            background: #218838;
         }
 
         .control-button.danger {
@@ -142,6 +162,39 @@
 
         .control-button.danger:hover {
             background: #c82333;
+        }
+
+        .control-spacer {
+            flex: 1;
+        }
+
+        #connection-status {
+            color: #28a745;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        #connection-status::before {
+            content: '●';
+            font-size: 16px;
+        }
+
+        /* Fullscreen styles */
+        #spice-container:-webkit-full-screen {
+            width: 100%;
+            height: 100%;
+        }
+
+        #spice-container:-moz-full-screen {
+            width: 100%;
+            height: 100%;
+        }
+
+        #spice-container:fullscreen {
+            width: 100%;
+            height: 100%;
         }
     </style>
 
@@ -176,7 +229,10 @@
     <!-- SPICE Container -->
     <div id="spice-container">
         <div id="control-panel">
+            <span id="connection-status">已连接</span>
             <button class="control-button" id="ctrlAltDelButton">Ctrl+Alt+Del</button>
+            <button class="control-button success" id="fullscreenButton">全屏</button>
+            <div class="control-spacer"></div>
             <button class="control-button danger" id="disconnectButton">断开连接</button>
         </div>
         <div id="spice-area">
@@ -207,7 +263,9 @@
             errorMessage: document.getElementById('error-message'),
             spiceContainer: document.getElementById('spice-container'),
             ctrlAltDelButton: document.getElementById('ctrlAltDelButton'),
-            disconnectButton: document.getElementById('disconnectButton')
+            fullscreenButton: document.getElementById('fullscreenButton'),
+            disconnectButton: document.getElementById('disconnectButton'),
+            connectionStatus: document.getElementById('connection-status')
         };
 
         // Parse URL parameters
@@ -427,6 +485,74 @@
                 disconnect();
             }
         });
+
+        /**
+         * Fullscreen functionality
+         */
+        let isFullscreen = false;
+
+        elements.fullscreenButton.addEventListener('click', function() {
+            if (!isFullscreen) {
+                enterFullscreen();
+            } else {
+                exitFullscreen();
+            }
+        });
+
+        function enterFullscreen() {
+            const elem = elements.spiceContainer;
+
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen();
+            } else if (elem.webkitRequestFullscreen) { /* Safari */
+                elem.webkitRequestFullscreen();
+            } else if (elem.msRequestFullscreen) { /* IE11 */
+                elem.msRequestFullscreen();
+            } else if (elem.mozRequestFullScreen) { /* Firefox */
+                elem.mozRequestFullScreen();
+            }
+
+            console.log('📺 [SPICE] Entering fullscreen mode');
+        }
+
+        function exitFullscreen() {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) { /* Safari */
+                document.webkitExitFullscreen();
+            } else if (document.msExitFullscreen) { /* IE11 */
+                document.msExitFullscreen();
+            } else if (document.mozCancelFullScreen) { /* Firefox */
+                document.mozCancelFullScreen();
+            }
+
+            console.log('📺 [SPICE] Exiting fullscreen mode');
+        }
+
+        // Listen for fullscreen changes
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+        document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+        document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+        function handleFullscreenChange() {
+            isFullscreen = !!(document.fullscreenElement ||
+                            document.webkitFullscreenElement ||
+                            document.mozFullScreenElement ||
+                            document.msFullscreenElement);
+
+            if (isFullscreen) {
+                elements.fullscreenButton.textContent = '退出全屏';
+                elements.fullscreenButton.classList.remove('success');
+                elements.fullscreenButton.classList.add('danger');
+                console.log('✅ [SPICE] Fullscreen mode activated');
+            } else {
+                elements.fullscreenButton.textContent = '全屏';
+                elements.fullscreenButton.classList.remove('danger');
+                elements.fullscreenButton.classList.add('success');
+                console.log('✅ [SPICE] Fullscreen mode deactivated');
+            }
+        }
 
         // Handle window unload
         window.addEventListener('beforeunload', function() {
