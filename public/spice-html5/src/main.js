@@ -183,7 +183,7 @@ SpiceMainConn.prototype.process_channel_message = function(msg)
                 if (! ("extra_channels" in this))
                     this.extra_channels = [];
                 this.extra_channels[i] = new SpiceConn(conn);
-                this.log_err("Channel type " + this.extra_channels[i].channel_type() + " not implemented");
+                this.log_info("Channel type " + this.extra_channels[i].channel_type() + " not supported (optional)");
             }
 
         }
