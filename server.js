@@ -60,10 +60,15 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
       imgSrc: ["'self'", "data:", "blob:"],
       connectSrc: ["'self'", "ws:", "wss:"],
+      fontSrc: ["'self'", "data:"],
+      workerSrc: ["'self'", "blob:"],
     },
   },
   crossOriginOpenerPolicy: false,  // 禁用 COOP，避免 HTTP 环境下的警告
   crossOriginResourcePolicy: { policy: "cross-origin" },  // 允许跨域资源
+  crossOriginEmbedderPolicy: false,  // 禁用 COEP
+  originAgentCluster: false,  // 禁用 Origin-Agent-Cluster 头
+  hsts: false,  // 禁用 HSTS，避免 HTTP 环境下强制 HTTPS
 }));
 
 app.use(cors(config.cors));
