@@ -281,15 +281,31 @@ class OcloudviewService {
   // 获取SPICE连接信息
   async getSPICEConnectionInfo(token, vmId) {
     try {
+      console.log(`🔄 [SPICE API] Fetching connection info for VM: ${vmId}`);
+      console.log(`   Token preview: ${token ? token.substring(0, 20) + '...' : 'null'}`);
+
+      const requestData = {
+        connectType: 'ocloudview',
+        uuid: vmId,
+      };
+
+      console.log(`   Request data:`, requestData);
+
       const response = await this.client.post('/ocloud/usermodule/get-connection-info',
+        requestData,
         {
-          connectType: 'ocloudview',
-          uuid: vmId,
-        },
-        {
-          headers: { 'token_login': token },
+          headers: {
+            'token_login': token,
+            'Content-Type': 'application/json'
+          },
         }
       );
+
+      console.log(`✅ [SPICE API] Response received:`, {
+        returnCode: response.data.returnCode,
+        status: response.data.status,
+        hasData: !!response.data.data
+      });
 
       const data = response.data;
 
@@ -307,6 +323,11 @@ class OcloudviewService {
         domainIPs: data.data.list || [],
       };
     } catch (error) {
+      console.error(`❌ [SPICE API] Error:`, error.message);
+      if (error.response) {
+        console.error(`   Response status: ${error.response.status}`);
+        console.error(`   Response data:`, error.response.data);
+      }
       throw new Error('获取SPICE连接信息失败: ' + error.message);
     }
   }

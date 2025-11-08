@@ -142,36 +142,56 @@
 
         // 显示连接选择器模态框
         function showConnectionModal(vmId) {
+            console.log('📞 showConnectionModal called with vmId:', vmId);
+            if (!vmId || vmId === 'undefined' || vmId === 'null') {
+                console.error('❌ Invalid vmId provided to showConnectionModal');
+                Utils.showError('虚拟机ID无效，请刷新页面重试');
+                return;
+            }
             selectedVmId = vmId;
             document.getElementById('connectionModal').style.display = 'flex';
         }
 
         // 关闭连接选择器模态框
         function closeConnectionModal() {
-            selectedVmId = null;
+            // 不要立即清空 selectedVmId，等到连接完成后再清
             document.getElementById('connectionModal').style.display = 'none';
         }
 
         // 使用指定协议连接
         async function connectWithProtocol(protocol) {
-            if (!selectedVmId) return;
+            console.log('🔗 connectWithProtocol called:', { protocol, selectedVmId });
+
+            if (!selectedVmId || selectedVmId === 'undefined' || selectedVmId === 'null') {
+                console.error('❌ Invalid selectedVmId:', selectedVmId);
+                Utils.showError('虚拟机ID无效，请重新选择');
+                closeConnectionModal();
+                selectedVmId = null;
+                return;
+            }
+
+            // 保存 vmId 到本地变量，防止被清空
+            const vmId = selectedVmId;
 
             closeConnectionModal();
             Utils.showLoading('正在建立连接...');
 
             try {
                 if (protocol === 'vnc') {
-                    const result = await API.vnc.connect(selectedVmId);
+                    console.log('🖥️ Connecting via VNC for VM:', vmId);
+                    const result = await API.vnc.connect(vmId);
 
                     if (result.success) {
                         // 跳转到VNC页面
-                        window.location.href = `/vnc.html?id=${selectedVmId}&token=${Utils.getToken()}`;
+                        window.location.href = `/vnc.html?id=${vmId}&token=${Utils.getToken()}`;
                     } else {
                         throw new Error(result.message || 'VNC连接失败');
                     }
                 } else if (protocol === 'spice') {
+                    console.log('⚡ Connecting via SPICE for VM:', vmId);
+
                     // 调用 SPICE 连接 API
-                    const response = await fetch(`/api/spice/connect/${selectedVmId}`, {
+                    const response = await fetch(`/api/spice/connect/${vmId}`, {
                         method: 'GET',
                         headers: {
                             'Authorization': `Bearer ${Utils.getToken()}`,
@@ -179,19 +199,29 @@
                         }
                     });
 
+                    console.log('📥 SPICE API response status:', response.status);
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`API请求失败 (${response.status}): ${errorText}`);
+                    }
+
                     const result = await response.json();
+                    console.log('📊 SPICE API result:', result);
 
                     if (result.success) {
                         // 跳转到SPICE页面
-                        window.location.href = `/spice.html?id=${selectedVmId}&token=${Utils.getToken()}`;
+                        console.log('✅ SPICE connection successful, redirecting...');
+                        window.location.href = `/spice.html?id=${vmId}&token=${Utils.getToken()}`;
                     } else {
                         throw new Error(result.message || 'SPICE连接失败');
                     }
                 }
             } catch (error) {
-                console.error('Connect VM error:', error);
+                console.error('❌ Connect VM error:', error);
                 Utils.showError('连接虚拟机失败: ' + error.message);
             } finally {
+                selectedVmId = null;
                 Utils.hideLoading();
             }
         }
