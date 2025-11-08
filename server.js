@@ -14,6 +14,7 @@ const { body, param, query, validationResult } = require('express-validator');
 const rateLimit = require('express-rate-limit');
 const WebsockifyProxy = require('./lib/websockify-proxy');
 const { handleVNCConnection } = require('./lib/websocket-handler');
+const { handleSPICEConnection } = require('./lib/spice-handler');
 require('dotenv').config();
 
 // ===== 配置 =====
@@ -818,13 +819,30 @@ console.log('🔌 WebsockifyProxy initialized (based on websockify-js architectu
 wss.on('connection', (ws, req) => {
   console.log(`📱 New WebSocket connection from ${req.socket.remoteAddress}`);
 
-  // 使用新的连接处理器
-  handleVNCConnection(ws, req, {
-    wsProxy,
-    config,
-    ocloudviewService,
-    sessionStore
-  });
+  const urlPath = req.url.split('?')[0];
+
+  // 根据路径选择处理器
+  if (urlPath.startsWith('/vnc/')) {
+    // 使用 VNC 连接处理器
+    handleVNCConnection(ws, req, {
+      wsProxy,
+      config,
+      ocloudviewService,
+      sessionStore
+    });
+  } else if (urlPath.startsWith('/spice/')) {
+    // 使用 SPICE 连接处理器
+    handleSPICEConnection(ws, req, {
+      wsProxy,
+      config,
+      ocloudviewService,
+      sessionStore
+    });
+  } else {
+    console.error(`❌ Unknown WebSocket path: ${urlPath}`);
+    console.error(`   Expected: /vnc/{vmId} or /spice/{vmId}`);
+    ws.close(1002, 'Invalid path');
+  }
 });
 
 wss.on('error', (error) => {

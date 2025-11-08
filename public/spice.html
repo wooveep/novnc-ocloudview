@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>虚拟机连接 - SPICE</title>
+    <link rel="stylesheet" type="text/css" href="/spice-html5/spice.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            overflow: hidden;
+        }
+
+        #loading-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        #loading-text {
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        #loading-subtext {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-top: 10px;
+        }
+
+        #error-container {
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+        }
+
+        .error-icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+        }
+
+        #error-message {
+            font-size: 18px;
+            text-align: center;
+            max-width: 600px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .error-back-button {
+            padding: 12px 24px;
+            background-color: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .error-back-button:hover {
+            background-color: #5568d3;
+        }
+
+        #spice-container {
+            display: none;
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        #spice-area {
+            width: 100%;
+            height: 100%;
+        }
+
+        #spice-screen {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Control Panel Styles */
+        #control-panel {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 8px;
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        .control-button {
+            padding: 8px 16px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .control-button:hover {
+            background: #5568d3;
+        }
+
+        .control-button.danger {
+            background: #dc3545;
+        }
+
+        .control-button.danger:hover {
+            background: #c82333;
+        }
+    </style>
+
+    <!-- ES2015/ES6 modules polyfill -->
+    <script type="module">
+        window._spice_has_module_support = true;
+    </script>
+    <script>
+        window.addEventListener("load", function() {
+            if (window._spice_has_module_support) return;
+            var loader = document.createElement("script");
+            loader.src = "/spice-html5/thirdparty/browser-es-module-loader/dist/browser-es-module-loader.js";
+            document.head.appendChild(loader);
+        });
+    </script>
+</head>
+<body>
+    <!-- Loading State -->
+    <div id="loading-container">
+        <div class="spinner"></div>
+        <div id="loading-text">正在连接虚拟机...</div>
+        <div id="loading-subtext">请稍候</div>
+    </div>
+
+    <!-- Error State -->
+    <div id="error-container">
+        <div class="error-icon">⚠️</div>
+        <div id="error-message"></div>
+        <button class="error-back-button" onclick="goBack()">返回仪表板</button>
+    </div>
+
+    <!-- SPICE Container -->
+    <div id="spice-container">
+        <div id="control-panel">
+            <button class="control-button" id="ctrlAltDelButton">Ctrl+Alt+Del</button>
+            <button class="control-button danger" id="disconnectButton">断开连接</button>
+        </div>
+        <div id="spice-area">
+            <div id="spice-screen" class="spice-screen"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as SpiceHtml5 from './spice-html5/src/main.js';
+
+        'use strict';
+
+        // Configuration
+        const CONFIG = {
+            API_ENDPOINT: '/api/vnc/connect',
+            REDIRECT_DELAY: 2000,
+            DEFAULT_SETTINGS: {
+                // SPICE settings can be configured here
+            }
+        };
+
+        // DOM Elements
+        const elements = {
+            loadingContainer: document.getElementById('loading-container'),
+            loadingText: document.getElementById('loading-text'),
+            loadingSubtext: document.getElementById('loading-subtext'),
+            errorContainer: document.getElementById('error-container'),
+            errorMessage: document.getElementById('error-message'),
+            spiceContainer: document.getElementById('spice-container'),
+            ctrlAltDelButton: document.getElementById('ctrlAltDelButton'),
+            disconnectButton: document.getElementById('disconnectButton')
+        };
+
+        // Parse URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const vmId = urlParams.get('id');
+        const token = urlParams.get('token') || localStorage.getItem('token');
+
+        let sc = null; // SPICE connection
+
+        // Initialize
+        console.log('🚀 [SPICE Client] Initializing...');
+        console.log(`   VM ID: ${vmId || 'Not provided'}`);
+        console.log(`   Token source: ${urlParams.get('token') ? 'URL parameter' : 'localStorage'}`);
+
+        // Validate inputs
+        if (!vmId) {
+            showError('缺少虚拟机 ID', 'URL 参数中未找到虚拟机 ID，请从仪表板重新连接');
+        } else if (!token) {
+            showError('未认证', '您的登录状态已过期，请重新登录', true);
+        } else {
+            initializeSPICE();
+        }
+
+        /**
+         * Initialize SPICE connection
+         */
+        async function initializeSPICE() {
+            try {
+                updateLoadingText('正在获取连接信息...');
+
+                // Fetch SPICE connection info
+                const spiceInfo = await fetchSPICEInfo();
+
+                updateLoadingText('正在启动 SPICE 客户端...');
+
+                // Connect to SPICE
+                connectSPICE(spiceInfo);
+
+            } catch (error) {
+                console.error('❌ [SPICE Client] Initialization failed:', error);
+                handleInitError(error);
+            }
+        }
+
+        /**
+         * Fetch SPICE connection information from API
+         */
+        async function fetchSPICEInfo() {
+            console.log('📞 [API] Fetching SPICE connection info...');
+
+            const response = await fetch(`${CONFIG.API_ENDPOINT}/${vmId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
+            }
+
+            const result = await response.json();
+
+            if (!result.success) {
+                throw new Error(result.error || result.message || 'API 返回失败状态');
+            }
+
+            const spiceInfo = result.data;
+            console.log('✅ [API] SPICE info received');
+
+            return spiceInfo;
+        }
+
+        /**
+         * Connect to SPICE server
+         */
+        function connectSPICE(spiceInfo) {
+            try {
+                // Build SPICE WebSocket URL
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const host = window.location.hostname;
+                const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+
+                // Build SPICE URI with token - use /spice/ path
+                const uri = `${protocol}//${host}:${port}/spice/${vmId}?token=${encodeURIComponent(token)}`;
+
+                console.log('🔗 [SPICE] Connecting to:', uri);
+
+                // Create SPICE connection
+                sc = new SpiceHtml5.SpiceMainConn({
+                    uri: uri,
+                    screen_id: "spice-screen",
+                    password: spiceInfo.password || '',
+                    onerror: handleSpiceError,
+                    onagent: handleAgentConnected
+                });
+
+                console.log('✅ [SPICE Client] Connection initiated');
+
+                // Show SPICE container
+                elements.loadingContainer.style.display = 'none';
+                elements.spiceContainer.style.display = 'block';
+
+            } catch (error) {
+                console.error('❌ [SPICE Client] Connection failed:', error);
+                throw error;
+            }
+        }
+
+        /**
+         * Handle SPICE error
+         */
+        function handleSpiceError(e) {
+            console.error('❌ [SPICE] Error:', e);
+            showError('连接错误', 'SPICE 连接发生错误，请检查虚拟机状态后重试');
+            disconnect();
+        }
+
+        /**
+         * Handle agent connected
+         */
+        function handleAgentConnected(sc) {
+            console.log('✅ [SPICE] Agent connected');
+            window.addEventListener('resize', () => SpiceHtml5.handle_resize(sc));
+            window.spice_connection = sc;
+            SpiceHtml5.resize_helper(sc);
+
+            // Setup file drag and drop if supported
+            if (window.File && window.FileReader && window.FileList && window.Blob) {
+                const spiceXferArea = document.createElement("div");
+                spiceXferArea.setAttribute('id', 'spice-xfer-area');
+                document.getElementById('spice-area').appendChild(spiceXferArea);
+                document.getElementById('spice-area').addEventListener('dragover', SpiceHtml5.handle_file_dragover, false);
+                document.getElementById('spice-area').addEventListener('drop', SpiceHtml5.handle_file_drop, false);
+            }
+        }
+
+        /**
+         * Disconnect from SPICE
+         */
+        function disconnect() {
+            console.log('🔌 [SPICE] Disconnecting...');
+            if (sc) {
+                sc.stop();
+                sc = null;
+            }
+            goBack();
+        }
+
+        /**
+         * Update loading text
+         */
+        function updateLoadingText(text, subtext = '请稍候') {
+            elements.loadingText.textContent = text;
+            elements.loadingSubtext.textContent = subtext;
+        }
+
+        /**
+         * Handle initialization errors
+         */
+        function handleInitError(error) {
+            const errorMsg = error.message || '未知错误';
+
+            if (errorMsg.includes('401') || errorMsg.includes('403') || errorMsg.includes('认证')) {
+                showError('认证失败', '您的登录状态已过期，请重新登录', true);
+            } else if (errorMsg.includes('404')) {
+                showError('虚拟机不存在', '未找到指定的虚拟机，可能已被删除或您没有访问权限');
+            } else if (errorMsg.includes('500')) {
+                showError('服务器错误', '服务器处理请求时发生错误，请稍后重试');
+            } else if (errorMsg.includes('timeout') || errorMsg.includes('network')) {
+                showError('网络错误', '无法连接到服务器，请检查网络连接后重试');
+            } else {
+                showError('连接失败', errorMsg);
+            }
+        }
+
+        /**
+         * Show error message
+         */
+        function showError(title, message, redirectToLogin = false) {
+            elements.errorMessage.innerHTML = `<strong>${title}</strong><br>${message}`;
+            elements.loadingContainer.style.display = 'none';
+            elements.spiceContainer.style.display = 'none';
+            elements.errorContainer.style.display = 'flex';
+
+            if (redirectToLogin) {
+                setTimeout(() => {
+                    window.location.href = '/index.html';
+                }, CONFIG.REDIRECT_DELAY);
+            }
+        }
+
+        /**
+         * Go back to dashboard
+         */
+        window.goBack = function() {
+            window.location.href = '/dashboard.html';
+        };
+
+        /**
+         * Send Ctrl+Alt+Del
+         */
+        elements.ctrlAltDelButton.addEventListener('click', function() {
+            if (sc) {
+                SpiceHtml5.sendCtrlAltDel(sc);
+                console.log('⌨️ [SPICE] Sent Ctrl+Alt+Del');
+            }
+        });
+
+        /**
+         * Disconnect button
+         */
+        elements.disconnectButton.addEventListener('click', function() {
+            if (confirm('确定要断开连接吗？')) {
+                disconnect();
+            }
+        });
+
+        // Handle window unload
+        window.addEventListener('beforeunload', function() {
+            if (sc) {
+                sc.stop();
+            }
+        });
+    </script>
+</body>
+</html>
