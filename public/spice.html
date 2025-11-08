@@ -120,9 +120,9 @@
         #toolbar-trigger {
             position: fixed;
             top: 0;
-            left: 0;
-            right: 0;
-            height: 40px;
+            left: 25%;
+            right: 25%;
+            height: 10px;
             z-index: 999;
             background: transparent;
         }
@@ -145,11 +145,6 @@
         }
 
         #control-panel.visible {
-            transform: translateY(0);
-        }
-
-        #toolbar-trigger:hover + #control-panel,
-        #control-panel:hover {
             transform: translateY(0);
         }
 
@@ -575,6 +570,63 @@
                 console.log('✅ [SPICE] Fullscreen mode deactivated');
             }
         }
+
+        // Toolbar auto-show/hide with 2s delay
+        let toolbarShowTimer = null;
+        let toolbarHideTimer = null;
+        const toolbarTrigger = document.getElementById('toolbar-trigger');
+        const controlPanel = document.getElementById('control-panel');
+
+        function showToolbar() {
+            if (toolbarHideTimer) {
+                clearTimeout(toolbarHideTimer);
+                toolbarHideTimer = null;
+            }
+            controlPanel.classList.add('visible');
+        }
+
+        function hideToolbar() {
+            controlPanel.classList.remove('visible');
+        }
+
+        // Trigger area hover - show after 2s delay
+        toolbarTrigger.addEventListener('mouseenter', function() {
+            if (toolbarShowTimer) {
+                clearTimeout(toolbarShowTimer);
+            }
+            toolbarShowTimer = setTimeout(function() {
+                showToolbar();
+            }, 2000); // 2秒延迟
+        });
+
+        toolbarTrigger.addEventListener('mouseleave', function() {
+            if (toolbarShowTimer) {
+                clearTimeout(toolbarShowTimer);
+                toolbarShowTimer = null;
+            }
+        });
+
+        // Control panel hover - keep visible
+        controlPanel.addEventListener('mouseenter', function() {
+            if (toolbarHideTimer) {
+                clearTimeout(toolbarHideTimer);
+                toolbarHideTimer = null;
+            }
+            if (toolbarShowTimer) {
+                clearTimeout(toolbarShowTimer);
+                toolbarShowTimer = null;
+            }
+            showToolbar();
+        });
+
+        controlPanel.addEventListener('mouseleave', function() {
+            if (toolbarHideTimer) {
+                clearTimeout(toolbarHideTimer);
+            }
+            toolbarHideTimer = setTimeout(function() {
+                hideToolbar();
+            }, 500); // 延迟隐藏，避免鼠标快速移动时闪烁
+        });
 
         // Handle window unload
         window.addEventListener('beforeunload', function() {

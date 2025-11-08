@@ -178,6 +178,13 @@ SpiceMainConn.prototype.process_channel_message = function(msg)
                 this.cursor = new SpicePlaybackConn(conn);
             else if (chans.channels[i].type == Constants.SPICE_CHANNEL_PORT)
                 this.ports.push(new SpicePortConn(conn));
+            else if (chans.channels[i].type == Constants.SPICE_CHANNEL_USBREDIR ||
+                     chans.channels[i].type == Constants.SPICE_CHANNEL_RECORD ||
+                     chans.channels[i].type == Constants.SPICE_CHANNEL_WEBDAV)
+            {
+                // Skip optional channels that are not needed - don't create connection
+                DEBUG > 0 && this.log_info("Skipping optional channel type " + chans.channels[i].type + " (not needed)");
+            }
             else
             {
                 if (! ("extra_channels" in this))
