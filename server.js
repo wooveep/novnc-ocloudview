@@ -50,7 +50,7 @@ const config = {
 // ===== Express 应用初始化 =====
 const app = express();
 
-// 安全中间件
+// 安全中间件 - HTTP 环境优化配置
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -62,6 +62,7 @@ app.use(helmet({
       connectSrc: ["'self'", "ws:", "wss:"],
       fontSrc: ["'self'", "data:"],
       workerSrc: ["'self'", "blob:"],
+      upgradeInsecureRequests: null,  // 禁用升级不安全请求，避免 HTTP 环境下的错误
     },
   },
   crossOriginOpenerPolicy: false,  // 禁用 COOP，避免 HTTP 环境下的警告
