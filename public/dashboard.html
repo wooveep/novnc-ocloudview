@@ -381,8 +381,8 @@
                 `;
             } else if (vm.status === 'stopped' || vm.status === 'shutoff') {
                 return `
-                    <button class="btn btn-success" style="flex: 1;" onclick="startVM('${vm.id}')">
-                        启动
+                    <button class="btn btn-primary" style="flex: 1;" onclick="connectVM('${vm.id}')">
+                        连接桌面
                     </button>
                 `;
             } else {
@@ -407,11 +407,49 @@
         }
 
         // 连接虚拟机
-        function connectVM(vmId) {
+        async function connectVM(vmId) {
             const defaultProtocol = getDefaultProtocol();
             console.log('🔌 connectVM called:', { vmId, defaultProtocol });
 
+            // 查找虚拟机状态
+            const vm = vms.find(v => v.id === vmId);
+            if (!vm) {
+                Utils.showError('未找到虚拟机');
+                return;
+            }
+
+            // 如果虚拟机已关机，先启动
+            if (vm.status === 'stopped' || vm.status === 'shutoff') {
+                console.log('⚡ VM is offline, starting it first...');
+                Utils.showLoading('虚拟机已关机，正在启动...');
+
+                try {
+                    const result = await API.vm.start(vmId);
+
+                    if (!result.success) {
+                        throw new Error(result.message || '启动失败');
+                    }
+
+                    console.log('✅ VM started successfully');
+                    Utils.showLoading('虚拟机启动成功，正在建立连接...');
+
+                    // 等待一段时间让虚拟机完全启动
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+
+                    // 刷新虚拟机列表以更新状态
+                    await loadVMs();
+
+                } catch (error) {
+                    console.error('Start VM error:', error);
+                    Utils.showError('启动虚拟机失败: ' + error.message);
+                    Utils.hideLoading();
+                    return;
+                }
+            }
+
+            // 连接虚拟机
             if (defaultProtocol === 'ask') {
+                Utils.hideLoading();
                 // 显示连接方式选择器
                 showConnectionModal(vmId);
             } else {
