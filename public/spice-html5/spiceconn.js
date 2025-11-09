@@ -263,6 +263,14 @@ SpiceConn.prototype =
         {
             this.reply_link = new SpiceLinkReply(mb);
              // FIXME - Screen the caps - require minihdr at least, right?
+
+            // Enhanced debugging: Log protocol version and capabilities
+            DEBUG > 0 && console.log("🔍 [SPICE Protocol Debug] Link Reply:");
+            DEBUG > 0 && console.log("  - Channel: " + this.channel_type());
+            DEBUG > 0 && console.log("  - Common caps:", this.reply_link.common_caps);
+            DEBUG > 0 && console.log("  - Channel caps:", this.reply_link.channel_caps);
+            DEBUG > 0 && console.log("  - Error code:", this.reply_link.error);
+
             if (this.reply_link.error)
             {
                 this.state = "error";
@@ -369,6 +377,7 @@ SpiceConn.prototype =
         var rc;
         var start = Date.now();
         DEBUG > 0 && console.log("<< hdr " + this.channel_type() + " type " + msg.type + " size " + (msg.data && msg.data.byteLength));
+        DEBUG > 1 && console.log("📨 [Message Details] Channel: " + this.channel_type() + ", Type: " + msg.type + ", Size: " + (msg.data ? msg.data.byteLength : 0) + " bytes");
         rc = this.process_common_messages(msg);
         if (! rc)
         {
@@ -376,7 +385,10 @@ SpiceConn.prototype =
             {
                 rc = this.process_channel_message(msg);
                 if (! rc)
+                {
                     this.log_warn(this.channel_type() + ": Unknown message type " + msg.type + "!");
+                    DEBUG > 0 && console.log("⚠️  [Protocol Mismatch] Unknown message type " + msg.type + " on channel " + this.channel_type());
+                }
             }
             else
                 this.log_err(this.channel_type() + ": No message handlers for this channel; message " + msg.type);
@@ -473,9 +485,18 @@ SpiceConn.prototype =
         if ( (!this.warnings[type]) || DEBUG > 1)
         {
             var str = "";
+            var suggestion = "";
             if (DEBUG <= 1)
                 str = " [ further notices suppressed ]";
-            this.log_warn("Unimplemented function " + type + "(" + msg + ")" + str);
+
+            // Add helpful suggestions for common unimplemented functions
+            if (type == 108 && msg == "Inval All Palettes")
+                suggestion = "\n  💡 This is a palette invalidation message, typically safe to ignore on modern systems.";
+            else if (type == 102 && msg == "Display Mark")
+                suggestion = "\n  💡 Display Mark is used for synchronization; lack of support may cause minor visual glitches.";
+
+            this.log_warn("Unimplemented function " + type + "(" + msg + ")" + str + suggestion);
+            DEBUG > 0 && console.log("⚠️  [Unimplemented] Message type " + type + " (" + msg + ") not implemented in spice-html5 client");
             this.warnings[type] = true;
         }
     },
