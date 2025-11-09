@@ -364,7 +364,10 @@
         <button class="close-btn" onclick="closeDiagnostic()">✕</button>
         <h2>🔍 SPICE 协议诊断</h2>
         <div id="diagnostic-content"></div>
-        <button class="export-btn" onclick="exportDiagnosticLog()">导出诊断日志</button>
+        <div style="margin-top: 15px;">
+            <button class="export-btn" onclick="exportDiagnosticLog()">导出诊断日志</button>
+            <button class="export-btn" onclick="forceInputFocus()" style="margin-left: 10px; background: #28a745;">修复输入焦点</button>
+        </div>
     </div>
 
     <script type="module">
@@ -489,7 +492,8 @@
                     screen_id: "spice-screen",
                     password: spiceInfo.password || '',
                     onerror: handleSpiceError,
-                    onagent: handleAgentConnected
+                    onagent: handleAgentConnected,
+                    onsuccess: handleConnectionSuccess
                 });
 
                 console.log('✅ [SPICE Client] Connection initiated');
@@ -497,6 +501,23 @@
                 // Show SPICE container
                 elements.loadingContainer.style.display = 'none';
                 elements.spiceContainer.style.display = 'block';
+
+                // Setup resize handler and initial resize (don't wait for agent)
+                window.spice_connection = sc;
+                setTimeout(function() {
+                    if (sc && sc.display && sc.display.surfaces && sc.display.surfaces[sc.display.primary_surface]) {
+                        console.log('🖥️  [SPICE] Setting up display and input handlers');
+                        window.addEventListener('resize', () => SpiceHtml5.handle_resize(sc));
+                        SpiceHtml5.resize_helper(sc);
+
+                        // Ensure canvas has focus for keyboard input
+                        var canvas = sc.display.surfaces[sc.display.primary_surface].canvas;
+                        if (canvas) {
+                            canvas.focus();
+                            console.log('✅ [SPICE] Canvas focused for input');
+                        }
+                    }
+                }, 1000); // Give time for display channel to initialize
 
             } catch (error) {
                 console.error('❌ [SPICE Client] Connection failed:', error);
@@ -511,6 +532,26 @@
             console.error('❌ [SPICE] Error:', e);
             showError('连接错误', 'SPICE 连接发生错误，请检查虚拟机状态后重试');
             disconnect();
+        }
+
+        /**
+         * Handle connection success
+         */
+        function handleConnectionSuccess(m) {
+            console.log('✅ [SPICE] Connection successful:', m);
+            elements.connectionStatus.textContent = '已连接';
+            elements.connectionStatus.style.color = '#28a745';
+
+            // Check if agent is connected
+            if (sc && sc.main_init && sc.main_init.agent_connected) {
+                console.log('✅ [SPICE] Agent is connected');
+            } else {
+                console.log('⚠️  [SPICE] Agent not connected - some features may be limited');
+                console.log('   - Auto-resize: Not available');
+                console.log('   - Clipboard sharing: Not available');
+                console.log('   - File transfer: Not available');
+                console.log('   - Keyboard/Mouse input: Should still work');
+            }
         }
 
         /**
@@ -800,12 +841,29 @@
                     html += '</div>';
                     html += '<div class="diagnostic-item">';
                     html += '<div class="diagnostic-label">鼠标模式:</div>';
-                    html += '<div class="diagnostic-value">' + sc.main_init.current_mouse_mode + '</div>';
+                    html += '<div class="diagnostic-value">' + sc.main_init.current_mouse_mode;
+                    html += ' (' + (sc.main_init.current_mouse_mode === 1 ? 'Server' : 'Client') + ')</div>';
                     html += '</div>';
                     html += '<div class="diagnostic-item">';
                     html += '<div class="diagnostic-label">Agent 连接:</div>';
-                    html += '<div class="diagnostic-value">' + (sc.main_init.agent_connected ? '是' : '否') + '</div>';
+                    html += '<div class="diagnostic-value">' + (sc.main_init.agent_connected ? '✅ 是' : '❌ 否') + '</div>';
                     html += '</div>';
+
+                    // Show agent warning if not connected
+                    if (!sc.main_init.agent_connected) {
+                        html += '<div class="warning-item">';
+                        html += '<strong>⚠️ SPICE Agent 未连接</strong><br>';
+                        html += '缺少的功能：<br>';
+                        html += '• 自动分辨率调整<br>';
+                        html += '• 剪贴板共享<br>';
+                        html += '• 文件拖放传输<br><br>';
+                        html += '<strong>解决方法：</strong><br>';
+                        html += '1. 确保虚拟机中已安装 SPICE Guest Tools / qemu-guest-agent<br>';
+                        html += '2. 在虚拟机中启动 SPICE vdagent 服务<br>';
+                        html += '3. 对于 Windows: 安装 spice-guest-tools.exe<br>';
+                        html += '4. 对于 Linux: 安装并启动 spice-vdagent 包';
+                        html += '</div>';
+                    }
                 }
 
                 // Show channel information
@@ -818,11 +876,35 @@
                         html += ', 表面数: ' + sc.display.surfaces.filter(s => s !== undefined).length;
                     }
                     html += '</div></div>';
+
+                    // Check if canvas has event listeners
+                    if (sc.display.primary_surface !== undefined && sc.display.surfaces[sc.display.primary_surface]) {
+                        const canvas = sc.display.surfaces[sc.display.primary_surface].canvas;
+                        html += '<div class="diagnostic-item">';
+                        html += '<div class="diagnostic-label">Canvas 状态:</div>';
+                        html += '<div class="diagnostic-value">';
+                        html += 'ID: ' + (canvas.id || 'N/A') + ', ';
+                        html += 'tabIndex: ' + (canvas.tabIndex || 'N/A') + ', ';
+                        html += 'isFocused: ' + (document.activeElement === canvas ? '✅' : '❌');
+                        html += '</div></div>';
+
+                        if (document.activeElement !== canvas) {
+                            html += '<div class="warning-item">';
+                            html += '<strong>⚠️ Canvas 未获得焦点</strong><br>';
+                            html += '这可能导致键盘输入无响应。<br>';
+                            html += '<strong>解决方法：</strong>点击虚拟机屏幕区域以激活输入。';
+                            html += '</div>';
+                        }
+                    }
                 }
                 if (sc.inputs) {
                     html += '<div class="diagnostic-item">';
                     html += '<div class="diagnostic-label">输入通道:</div>';
-                    html += '<div class="diagnostic-value">状态: ' + (sc.inputs.state || 'unknown') + '</div>';
+                    html += '<div class="diagnostic-value">状态: ' + (sc.inputs.state || 'unknown');
+                    if (sc.inputs.mouse_mode !== undefined) {
+                        html += ', 鼠标模式: ' + sc.inputs.mouse_mode;
+                    }
+                    html += '</div>';
                     html += '</div>';
                 }
                 if (sc.cursor) {
@@ -914,6 +996,31 @@
         document.getElementById('diagnostic-overlay').addEventListener('click', function() {
             closeDiagnostic();
         });
+
+        /**
+         * Force input focus on canvas
+         */
+        window.forceInputFocus = function() {
+            if (sc && sc.display && sc.display.primary_surface !== undefined && sc.display.surfaces[sc.display.primary_surface]) {
+                const canvas = sc.display.surfaces[sc.display.primary_surface].canvas;
+                if (canvas) {
+                    canvas.focus();
+                    console.log('✅ [Diagnostic] Canvas focus forced');
+
+                    // Also try to trigger resize in case that helps
+                    if (typeof SpiceHtml5.resize_helper === 'function') {
+                        SpiceHtml5.resize_helper(sc);
+                        console.log('✅ [Diagnostic] Resize helper called');
+                    }
+
+                    alert('已尝试修复输入焦点。如果问题仍然存在，请：\n1. 刷新页面重新连接\n2. 确保虚拟机中已安装 SPICE Guest Tools\n3. 点击虚拟机屏幕区域激活输入');
+                } else {
+                    alert('无法找到画布元素。请刷新页面重试。');
+                }
+            } else {
+                alert('SPICE 连接未就绪。请等待连接建立后重试。');
+            }
+        };
     </script>
 </body>
 </html>
