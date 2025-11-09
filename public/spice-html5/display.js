@@ -115,7 +115,21 @@ SpiceDisplayConn.prototype.process_channel_message = function(msg)
                 draw_copy.data.src_bitmap.descriptor.flags != Constants.SPICE_IMAGE_FLAGS_CACHE_ME &&
                 draw_copy.data.src_bitmap.descriptor.flags != Constants.SPICE_IMAGE_FLAGS_HIGH_BITS_SET)
             {
-                this.log_warn("FIXME: DrawCopy unhandled image flags: " + draw_copy.data.src_bitmap.descriptor.flags);
+                var flags_binary = (draw_copy.data.src_bitmap.descriptor.flags).toString(2).padStart(8, '0');
+                var flags_info = "\n  🔍 Flags breakdown (binary: " + flags_binary + "):";
+                if (draw_copy.data.src_bitmap.descriptor.flags & 0x01) flags_info += "\n    - Bit 0: CACHE_ME";
+                if (draw_copy.data.src_bitmap.descriptor.flags & 0x02) flags_info += "\n    - Bit 1: HIGH_BITS_SET";
+                if (draw_copy.data.src_bitmap.descriptor.flags & 0x04) flags_info += "\n    - Bit 2: CACHE_REPLACE_ME";
+                if (draw_copy.data.src_bitmap.descriptor.flags & 0x08) flags_info += "\n    - Bit 3: Unknown (possibly TOP_DOWN)";
+
+                this.log_warn("FIXME: DrawCopy unhandled image flags: " + draw_copy.data.src_bitmap.descriptor.flags + flags_info);
+                Utils.DEBUG > 0 && console.log("⚠️  [Image Flags] Unhandled flags detected:", {
+                    decimal: draw_copy.data.src_bitmap.descriptor.flags,
+                    binary: flags_binary,
+                    imageType: draw_copy.data.src_bitmap.descriptor.type,
+                    width: draw_copy.data.src_bitmap.descriptor.width,
+                    height: draw_copy.data.src_bitmap.descriptor.height
+                });
                 Utils.DEBUG <= 1 && this.log_draw("DrawCopy", draw_copy);
             }
 

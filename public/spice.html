@@ -212,6 +212,106 @@
             width: 100%;
             height: 100%;
         }
+
+        /* Diagnostic Panel */
+        #diagnostic-panel {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            z-index: 2000;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        #diagnostic-panel h2 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 20px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        #diagnostic-panel h3 {
+            margin-top: 15px;
+            margin-bottom: 10px;
+            font-size: 16px;
+            color: #667eea;
+        }
+
+        #diagnostic-panel pre {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        #diagnostic-panel .diagnostic-item {
+            margin-bottom: 10px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        #diagnostic-panel .diagnostic-label {
+            color: #aaa;
+            font-size: 12px;
+        }
+
+        #diagnostic-panel .diagnostic-value {
+            font-family: monospace;
+            font-size: 13px;
+        }
+
+        #diagnostic-panel .warning-item {
+            background: rgba(255, 193, 7, 0.1);
+            border-left: 3px solid #ffc107;
+            padding: 8px;
+            margin-bottom: 5px;
+            border-radius: 3px;
+        }
+
+        #diagnostic-panel .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        #diagnostic-panel .export-btn {
+            margin-top: 15px;
+            padding: 8px 16px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        #diagnostic-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1999;
+        }
     </style>
 
     <!-- ES2015/ES6 modules polyfill -->
@@ -248,6 +348,7 @@
         <div id="control-panel">
             <span id="connection-status">已连接</span>
             <button class="control-button" id="ctrlAltDelButton">Ctrl+Alt+Del</button>
+            <button class="control-button" id="diagnosticButton">协议诊断</button>
             <button class="control-button success" id="fullscreenButton">全屏</button>
             <div class="control-spacer"></div>
             <button class="control-button danger" id="disconnectButton">断开连接</button>
@@ -255,6 +356,15 @@
         <div id="spice-area">
             <div id="spice-screen" class="spice-screen"></div>
         </div>
+    </div>
+
+    <!-- Diagnostic Panel -->
+    <div id="diagnostic-overlay"></div>
+    <div id="diagnostic-panel">
+        <button class="close-btn" onclick="closeDiagnostic()">✕</button>
+        <h2>🔍 SPICE 协议诊断</h2>
+        <div id="diagnostic-content"></div>
+        <button class="export-btn" onclick="exportDiagnosticLog()">导出诊断日志</button>
     </div>
 
     <script type="module">
@@ -633,6 +743,176 @@
             if (sc) {
                 sc.stop();
             }
+        });
+
+        /**
+         * Diagnostic functionality
+         */
+        let diagnosticLogs = [];
+
+        // Override console methods to capture logs
+        const originalConsoleLog = console.log;
+        const originalConsoleWarn = console.warn;
+        const originalConsoleError = console.error;
+
+        console.log = function(...args) {
+            diagnosticLogs.push({ type: 'log', time: new Date().toISOString(), message: args.join(' ') });
+            originalConsoleLog.apply(console, args);
+        };
+
+        console.warn = function(...args) {
+            diagnosticLogs.push({ type: 'warn', time: new Date().toISOString(), message: args.join(' ') });
+            originalConsoleWarn.apply(console, args);
+        };
+
+        console.error = function(...args) {
+            diagnosticLogs.push({ type: 'error', time: new Date().toISOString(), message: args.join(' ') });
+            originalConsoleError.apply(console, args);
+        };
+
+        // Diagnostic button handler
+        document.getElementById('diagnosticButton').addEventListener('click', function() {
+            showDiagnosticPanel();
+        });
+
+        function showDiagnosticPanel() {
+            const content = document.getElementById('diagnostic-content');
+            const overlay = document.getElementById('diagnostic-overlay');
+            const panel = document.getElementById('diagnostic-panel');
+
+            let html = '<h3>📊 连接信息</h3>';
+            html += '<div class="diagnostic-item">';
+            html += '<div class="diagnostic-label">虚拟机 ID:</div>';
+            html += '<div class="diagnostic-value">' + (vmId || 'N/A') + '</div>';
+            html += '</div>';
+
+            if (sc) {
+                html += '<div class="diagnostic-item">';
+                html += '<div class="diagnostic-label">连接状态:</div>';
+                html += '<div class="diagnostic-value">' + (sc.state || 'unknown') + '</div>';
+                html += '</div>';
+
+                if (sc.main_init) {
+                    html += '<h3>🔌 SPICE 协议信息</h3>';
+                    html += '<div class="diagnostic-item">';
+                    html += '<div class="diagnostic-label">Session ID:</div>';
+                    html += '<div class="diagnostic-value">' + sc.main_init.session_id + '</div>';
+                    html += '</div>';
+                    html += '<div class="diagnostic-item">';
+                    html += '<div class="diagnostic-label">鼠标模式:</div>';
+                    html += '<div class="diagnostic-value">' + sc.main_init.current_mouse_mode + '</div>';
+                    html += '</div>';
+                    html += '<div class="diagnostic-item">';
+                    html += '<div class="diagnostic-label">Agent 连接:</div>';
+                    html += '<div class="diagnostic-value">' + (sc.main_init.agent_connected ? '是' : '否') + '</div>';
+                    html += '</div>';
+                }
+
+                // Show channel information
+                html += '<h3>📡 通道信息</h3>';
+                if (sc.display) {
+                    html += '<div class="diagnostic-item">';
+                    html += '<div class="diagnostic-label">显示通道:</div>';
+                    html += '<div class="diagnostic-value">状态: ' + (sc.display.state || 'unknown');
+                    if (sc.display.surfaces && sc.display.surfaces.length > 0) {
+                        html += ', 表面数: ' + sc.display.surfaces.filter(s => s !== undefined).length;
+                    }
+                    html += '</div></div>';
+                }
+                if (sc.inputs) {
+                    html += '<div class="diagnostic-item">';
+                    html += '<div class="diagnostic-label">输入通道:</div>';
+                    html += '<div class="diagnostic-value">状态: ' + (sc.inputs.state || 'unknown') + '</div>';
+                    html += '</div>';
+                }
+                if (sc.cursor) {
+                    html += '<div class="diagnostic-item">';
+                    html += '<div class="diagnostic-label">光标通道:</div>';
+                    html += '<div class="diagnostic-value">状态: ' + (sc.cursor.state || 'unknown') + '</div>';
+                    html += '</div>';
+                }
+
+                // Show warnings
+                html += '<h3>⚠️ 警告信息</h3>';
+                const warnings = [];
+                if (sc.display && sc.display.warnings) {
+                    for (let key in sc.display.warnings) {
+                        if (sc.display.warnings[key]) {
+                            warnings.push('Display: 未实现的消息类型 ' + key);
+                        }
+                    }
+                }
+                if (sc.inputs && sc.inputs.warnings) {
+                    for (let key in sc.inputs.warnings) {
+                        if (sc.inputs.warnings[key]) {
+                            warnings.push('Inputs: 未实现的消息类型 ' + key);
+                        }
+                    }
+                }
+
+                if (warnings.length > 0) {
+                    warnings.forEach(w => {
+                        html += '<div class="warning-item">' + w + '</div>';
+                    });
+                } else {
+                    html += '<div class="diagnostic-item">无警告</div>';
+                }
+            } else {
+                html += '<div class="diagnostic-item"><div class="diagnostic-value">未连接</div></div>';
+            }
+
+            // Show recent logs
+            html += '<h3>📝 最近日志 (最后20条)</h3>';
+            html += '<pre>';
+            const recentLogs = diagnosticLogs.slice(-20);
+            recentLogs.forEach(log => {
+                const icon = log.type === 'error' ? '❌' : (log.type === 'warn' ? '⚠️' : 'ℹ️');
+                html += icon + ' [' + new Date(log.time).toLocaleTimeString() + '] ' + log.message + '\\n';
+            });
+            html += '</pre>';
+
+            content.innerHTML = html;
+            overlay.style.display = 'block';
+            panel.style.display = 'block';
+        }
+
+        window.closeDiagnostic = function() {
+            document.getElementById('diagnostic-overlay').style.display = 'none';
+            document.getElementById('diagnostic-panel').style.display = 'none';
+        };
+
+        window.exportDiagnosticLog = function() {
+            const diagnosticData = {
+                timestamp: new Date().toISOString(),
+                vmId: vmId,
+                connection: sc ? {
+                    state: sc.state,
+                    main_init: sc.main_init,
+                    channels: {
+                        display: sc.display ? { state: sc.display.state, warnings: sc.display.warnings } : null,
+                        inputs: sc.inputs ? { state: sc.inputs.state, warnings: sc.inputs.warnings } : null,
+                        cursor: sc.cursor ? { state: sc.cursor.state, warnings: sc.cursor.warnings } : null
+                    }
+                } : null,
+                logs: diagnosticLogs
+            };
+
+            const dataStr = JSON.stringify(diagnosticData, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+
+            const exportFileDefaultName = 'spice-diagnostic-' + new Date().toISOString().replace(/:/g, '-') + '.json';
+
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileDefaultName);
+            linkElement.click();
+
+            console.log('✅ [Diagnostic] Log exported');
+        };
+
+        // Close diagnostic panel when clicking overlay
+        document.getElementById('diagnostic-overlay').addEventListener('click', function() {
+            closeDiagnostic();
         });
     </script>
 </body>
