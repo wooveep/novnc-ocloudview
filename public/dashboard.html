@@ -373,16 +373,35 @@
         
         // 渲染虚拟机操作按钮
         function renderVMActions(vm) {
-            if (vm.status === 'running') {
+            const isRunning = vm.status === 'running';
+            const isStopped = vm.status === 'stopped' || vm.status === 'shutoff';
+            const showForceReset = !isStopped; // 非停止状态显示强制重启按钮
+
+            if (isRunning) {
+                return `
+                    <button class="btn btn-primary" style="flex: 1;" onclick="connectVM('${vm.id}')">
+                        连接桌面
+                    </button>
+                    <button class="btn btn-warning" style="flex: 0 0 auto; padding: 10px 15px;"
+                            onclick="forceResetVM('${vm.id}')" title="强制重启">
+                        ⚡ 强制重启
+                    </button>
+                `;
+            } else if (isStopped) {
                 return `
                     <button class="btn btn-primary" style="flex: 1;" onclick="connectVM('${vm.id}')">
                         连接桌面
                     </button>
                 `;
-            } else if (vm.status === 'stopped' || vm.status === 'shutoff') {
+            } else if (showForceReset) {
+                // 其他状态（suspended, paused, crashed等）显示强制重启
                 return `
-                    <button class="btn btn-primary" style="flex: 1;" onclick="connectVM('${vm.id}')">
-                        连接桌面
+                    <button class="btn" style="flex: 1;" disabled>
+                        不可用
+                    </button>
+                    <button class="btn btn-warning" style="flex: 0 0 auto; padding: 10px 15px;"
+                            onclick="forceResetVM('${vm.id}')" title="强制重启">
+                        ⚡ 强制重启
                     </button>
                 `;
             } else {
@@ -489,12 +508,12 @@
             if (!confirm('确定要停止这台虚拟机吗？')) {
                 return;
             }
-            
+
             Utils.showLoading('正在停止虚拟机...');
-            
+
             try {
                 const result = await API.vm.stop(vmId);
-                
+
                 if (result.success) {
                     alert('虚拟机停止成功');
                     loadVMs();
@@ -504,6 +523,34 @@
             } catch (error) {
                 console.error('Stop VM error:', error);
                 Utils.showError('停止虚拟机失败: ' + error.message);
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        // 强制重启虚拟机
+        async function forceResetVM(vmId) {
+            if (!confirm('确定要强制重启此虚拟机吗？\n\n强制重启相当于按下电脑的重置按钮，可能会导致未保存的数据丢失。')) {
+                return;
+            }
+
+            Utils.showLoading('正在强制重启虚拟机...');
+
+            try {
+                const result = await API.vm.forceReset(vmId);
+
+                if (result.success) {
+                    Utils.showSuccess('虚拟机强制重启命令已发送');
+                    // 等待一段时间后刷新列表
+                    setTimeout(() => {
+                        loadVMs();
+                    }, 2000);
+                } else {
+                    throw new Error(result.message || '强制重启失败');
+                }
+            } catch (error) {
+                console.error('Force reset VM error:', error);
+                Utils.showError('强制重启虚拟机失败: ' + error.message);
             } finally {
                 Utils.hideLoading();
             }
