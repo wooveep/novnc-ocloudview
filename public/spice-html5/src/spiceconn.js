@@ -43,6 +43,7 @@ import {
 } from './spicemsg.js';
 import { DEBUG } from './utils.js';
 import * as Webm from './webm.js';
+import * as H264 from './h264.js';
 import { rsa_encrypt } from './ticket.js';
 
 function SpiceConn(o)
@@ -166,6 +167,8 @@ SpiceConn.prototype =
                         (1 << Constants.SPICE_DISPLAY_CAP_CODEC_MJPEG);
             if ('MediaSource' in window && MediaSource.isTypeSupported(Webm.Constants.SPICE_VP8_CODEC))
                 caps |= (1 << Constants.SPICE_DISPLAY_CAP_CODEC_VP8);
+            if (H264.h264_supported())
+                caps |= (1 << Constants.SPICE_DISPLAY_CAP_CODEC_H264);
             msg.channel_caps.push(caps);
         }
 
