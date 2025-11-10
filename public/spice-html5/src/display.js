@@ -19,6 +19,7 @@
 */
 
 import * as Webm from './webm.js';
+import * as H264 from './h264.js';
 import * as Messages from './spicemsg.js';
 import * as Quic from './quic.js';
 import * as Utils from './utils.js';
@@ -590,6 +591,44 @@ SpiceDisplayConn.prototype.process_channel_message = function(msg)
             media.spiceconn = this;
             v.spice_stream = s;
         }
+        else if (m.codec_type == Constants.SPICE_VIDEO_CODEC_TYPE_H264)
+        {
+            var media = new MediaSource();
+            var v = document.createElement("video");
+            v.src = window.URL.createObjectURL(media);
+
+            v.setAttribute('muted', true);
+            v.setAttribute('autoplay', true);
+            v.setAttribute('width', m.stream_width);
+            v.setAttribute('height', m.stream_height);
+
+            var left = m.dest.left;
+            var top = m.dest.top;
+            if (this.surfaces[m.surface_id] !== undefined)
+            {
+                left += this.surfaces[m.surface_id].canvas.offsetLeft;
+                top += this.surfaces[m.surface_id].canvas.offsetTop;
+            }
+            document.getElementById(this.parent.screen_id).appendChild(v);
+            v.setAttribute('style', "pointer-events:none; position: absolute; top:" + top + "px; left:" + left + "px;");
+
+            media.addEventListener('sourceopen', handle_h264_source_open, false);
+            media.addEventListener('sourceended', handle_video_source_ended, false);
+            media.addEventListener('sourceclosed', handle_video_source_closed, false);
+
+            var s = this.streams[m.id];
+            s.video = v;
+            s.media = media;
+            s.queue = new Array();
+            s.data_buffer = new Uint8Array(0);  // Buffer for accumulating H.264 data
+            s.append_okay = false;
+
+            media.stream = s;
+            media.spiceconn = this;
+            v.spice_stream = s;
+
+            Utils.STREAM_DEBUG > 0 && console.log("H.264 stream created, id: " + m.id);
+        }
         else if (m.codec_type == Constants.SPICE_VIDEO_CODEC_TYPE_MJPEG)
             this.streams[m.id].frames_loading = 0;
         else
@@ -619,6 +658,9 @@ SpiceDisplayConn.prototype.process_channel_message = function(msg)
 
         if (this.streams[m.base.id].codec_type === Constants.SPICE_VIDEO_CODEC_TYPE_VP8)
             process_video_stream_data(this.streams[m.base.id], m);
+
+        if (this.streams[m.base.id].codec_type === Constants.SPICE_VIDEO_CODEC_TYPE_H264)
+            process_h264_stream_data(this.streams[m.base.id], m);
 
         return true;
     }
@@ -657,6 +699,15 @@ SpiceDisplayConn.prototype.process_channel_message = function(msg)
             this.streams[m.id].source_buffer = null;
             this.streams[m.id].media = null;
             this.streams[m.id].video = null;
+        }
+        if (this.streams[m.id].codec_type == Constants.SPICE_VIDEO_CODEC_TYPE_H264)
+        {
+            document.getElementById(this.parent.screen_id).removeChild(this.streams[m.id].video);
+            this.streams[m.id].source_buffer = null;
+            this.streams[m.id].media = null;
+            this.streams[m.id].video = null;
+            this.streams[m.id].data_buffer = null;
+            Utils.STREAM_DEBUG > 0 && console.log("H.264 stream destroyed, id: " + m.id);
         }
         this.streams[m.id] = undefined;
         return true;
@@ -985,6 +1036,147 @@ function handle_draw_jpeg_onload()
 
     if ("streams" in this.o.sc && this.o.sc.streams[this.o.id] && "report" in this.o.sc.streams[this.o.id] && this.o.sc.parent)
         process_stream_data_report(this.o.sc, this.o.id, this.o.msg_mmtime, this.o.msg_mmtime - this.o.sc.parent.relative_now());
+}
+
+/*----------------------------------------------------------------------------
+**  H.264 Stream Functions
+**--------------------------------------------------------------------------*/
+function handle_h264_source_open(e)
+{
+    var stream = this.stream;
+    var p = this.spiceconn;
+
+    if (stream.source_buffer)
+        return;
+
+    // Get the best supported H.264 codec
+    var codec = H264.get_h264_codec();
+    if (!codec)
+    {
+        p.log_err('No H.264 codec support available in browser.');
+        return;
+    }
+
+    Utils.STREAM_DEBUG > 0 && console.log("H.264 source opening with codec: " + codec);
+
+    var s = this.addSourceBuffer(codec);
+    if (!s)
+    {
+        p.log_err('Codec ' + codec + ' not available.');
+        return;
+    }
+
+    stream.source_buffer = s;
+    s.spiceconn = p;
+    s.stream = stream;
+
+    // Set source buffer mode
+    try {
+        s.mode = 'sequence';
+    } catch (e) {
+        Utils.STREAM_DEBUG > 0 && console.log("Could not set source buffer mode to sequence: " + e.message);
+    }
+
+    s.addEventListener('error', handle_h264_buffer_error, false);
+    s.addEventListener('updateend', handle_append_h264_buffer_done, false);
+
+    stream.append_okay = true;
+
+    Utils.STREAM_DEBUG > 0 && console.log("H.264 source buffer ready");
+}
+
+function handle_h264_buffer_error(e)
+{
+    var p = this.spiceconn;
+    p.log_err('H.264 source buffer error: ' + e);
+}
+
+function append_h264_buffer(sb, data)
+{
+    try
+    {
+        sb.stream.append_okay = false;
+        sb.appendBuffer(data);
+    }
+    catch (e)
+    {
+        var p = sb.spiceconn;
+        p.log_err("Error appending H.264 buffer: " + e.message);
+    }
+}
+
+function handle_append_h264_buffer_done(e)
+{
+    var stream = this.stream;
+
+    if (stream.current_frame && "report" in stream)
+    {
+        var sc = this.stream.media.spiceconn;
+        var t = this.stream.current_frame.msg_mmtime;
+        process_stream_data_report(sc, stream.id, t, t - sc.parent.relative_now());
+    }
+
+    if (stream.queue.length > 0)
+    {
+        stream.current_frame = stream.queue.shift();
+        append_h264_buffer(stream.source_buffer, stream.current_frame.data);
+    }
+    else
+    {
+        stream.append_okay = true;
+    }
+
+    if (!stream.video)
+    {
+        if (Utils.STREAM_DEBUG > 0)
+            console.log("Stream id " + stream.id + " received updateend after video is gone.");
+        return;
+    }
+
+    // Ensure video is playing
+    if (stream.video.paused && stream.video.readyState >= 2)
+        stream.video.play();
+
+    if (Utils.STREAM_DEBUG > 1)
+        console.log(stream.video.currentTime + ":id " +  stream.id + " H.264 updateend");
+}
+
+function push_or_queue_h264(stream, msg, data)
+{
+    if (!stream.source_buffer)
+    {
+        Utils.STREAM_DEBUG > 0 && console.log("No source buffer for H.264 stream " + stream.id);
+        return;
+    }
+
+    if (stream.append_okay)
+    {
+        stream.current_frame = { data: data, msg_mmtime: msg.base.multi_media_time };
+        append_h264_buffer(stream.source_buffer, data);
+    }
+    else
+    {
+        stream.queue.push({ data: data, msg_mmtime: msg.base.multi_media_time });
+    }
+}
+
+function process_h264_stream_data(stream, msg)
+{
+    if (!stream || !msg || !msg.data)
+    {
+        Utils.STREAM_DEBUG > 0 && console.log("Invalid H.264 stream data");
+        return;
+    }
+
+    Utils.STREAM_DEBUG > 1 && console.log("Processing H.264 stream data, size: " + msg.data.byteLength);
+
+    // For H.264, we expect the data to be in a format compatible with MediaSource
+    // This could be:
+    // 1. Fragmented MP4 (fMP4/ISO BMFF) - preferred for MediaSource
+    // 2. Raw H.264 NAL units with start codes
+    //
+    // The SPICE server should send data in fMP4 format for best compatibility
+    push_or_queue_h264(stream, msg, msg.data);
 }
 
 function process_mjpeg_stream_data(sc, m, time_until_due)
