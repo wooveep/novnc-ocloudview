@@ -134,6 +134,16 @@ function h264_log(message, data)
 /*----------------------------------------------------------------------------
 **  Module exports
 **--------------------------------------------------------------------------*/
+// ES6 module exports (for browser)
+export {
+    H264Constants as Constants,
+    h264_supported,
+    get_h264_codec,
+    is_h264_data,
+    h264_log,
+};
+
+// CommonJS exports (for Node.js compatibility)
 if (typeof module !== 'undefined' && module.exports)
 {
     module.exports = {
