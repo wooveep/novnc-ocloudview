@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>虚拟机连接 - SPICE</title>
-    <link rel="stylesheet" type="text/css" href="/spice-html5/spice.css" />
+    <link rel="stylesheet" type="text/css" href="/css/spice.css" />
     <style>
         * {
             margin: 0;
@@ -322,7 +322,7 @@
         window.addEventListener("load", function() {
             if (window._spice_has_module_support) return;
             var loader = document.createElement("script");
-            loader.src = "/spice-html5/thirdparty/browser-es-module-loader/dist/browser-es-module-loader.js";
+            loader.src = "/spice-html5/src/thirdparty/browser-es-module-loader/src/browser-es-module-loader.js";
             document.head.appendChild(loader);
         });
     </script>
