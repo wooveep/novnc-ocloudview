@@ -414,10 +414,10 @@ class OcloudviewService {
     try {
       // 1. 获取虚拟机连接信息
       const connectionInfo = await this.getVMConnectionInfo(token, vmId);
-      
+
       // 2. 获取VNC端口
       const ports = await this.getVNCPort(token, vmId);
-      
+
       // 3. 获取VNC密码
       const passwordInfo = await this.getVNCPassword(token, vmId);
 
@@ -432,6 +432,47 @@ class OcloudviewService {
       };
     } catch (error) {
       throw new Error('获取VNC连接信息失败: ' + error.message);
+    }
+  }
+
+  // 强制重启虚拟机
+  async forceReset(token, domainId) {
+    try {
+      console.log(`🔄 [Force Reset] Resetting VM: ${domainId}`);
+
+      const response = await this.client.post(`/ocloud/usermodule/forceReset/${domainId}`,
+        {},
+        {
+          headers: {
+            'Token': token,
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+        }
+      );
+
+      console.log(`✅ [Force Reset] Response received:`, {
+        returnCode: response.data.returnCode,
+        msg: response.data.msg
+      });
+
+      const data = response.data;
+
+      if (data.returnCode !== 0) {
+        throw new Error(data.msg || '强制重启失败');
+      }
+
+      return {
+        success: true,
+        message: data.msg || '虚拟机强制重启命令已发送',
+        data: data.data || {},
+      };
+    } catch (error) {
+      console.error(`❌ [Force Reset] Error:`, error.message);
+      if (error.response) {
+        console.error(`   Response status: ${error.response.status}`);
+        console.error(`   Response data:`, error.response.data);
+      }
+      throw new Error('强制重启虚拟机失败: ' + error.message);
     }
   }
 }
@@ -713,8 +754,8 @@ app.post('/api/vm/:id/stop', authMiddleware, async (req, res) => {
 
 app.post('/api/vm/:id/restart', authMiddleware, async (req, res) => {
   try {
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: '虚拟机重启命令已发送',
       data: { vmId: req.params.id }
     });
@@ -722,6 +763,30 @@ app.post('/api/vm/:id/restart', authMiddleware, async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to restart VM',
+      message: error.message,
+    });
+  }
+});
+
+// 强制重启虚拟机
+app.post('/api/vm/:id/force-reset', authMiddleware, async (req, res) => {
+  try {
+    const vmId = req.params.id;
+    console.log(`⚡ Force reset request for VM: ${vmId}`);
+
+    // 调用 OcloudView API 强制重启虚拟机
+    const result = await ocloudviewService.forceReset(req.ocloudToken, vmId);
+
+    res.json({
+      success: true,
+      message: result.message || '虚拟机强制重启命令已发送',
+      data: { vmId: vmId }
+    });
+  } catch (error) {
+    console.error('Force reset VM error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to force reset VM',
       message: error.message,
     });
   }

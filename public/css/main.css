@@ -78,6 +78,17 @@ body {
   background: #d32f2f;
 }
 
+.btn-warning {
+  background: #ff9800;
+  color: white;
+}
+
+.btn-warning:hover {
+  background: #f57c00;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3);
+}
+
 .btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;

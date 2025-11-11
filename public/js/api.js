@@ -46,13 +46,19 @@ const Utils = {
     if (errorEl) {
       errorEl.textContent = message;
       errorEl.classList.add('show');
-      
+
       setTimeout(() => {
         errorEl.classList.remove('show');
       }, duration);
     } else {
       alert(message);
     }
+  },
+
+  // 显示成功消息
+  showSuccess(message, duration = 3000) {
+    // 简单使用 alert，如果需要可以添加更优雅的提示
+    alert(message);
   },
 
   // 显示加载状态
@@ -186,6 +192,12 @@ const API = {
 
     async restart(id) {
       return API.request(`/vm/${id}/restart`, {
+        method: 'POST',
+      });
+    },
+
+    async forceReset(id) {
+      return API.request(`/vm/${id}/force-reset`, {
         method: 'POST',
       });
     },
