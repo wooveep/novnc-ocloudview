@@ -406,6 +406,21 @@ SpiceMsgMainAgentTokens.prototype =
     },
 }
 
+function SpiceMsgMainMultiMediaTime(a, at)
+{
+    this.from_buffer(a, at);
+}
+
+SpiceMsgMainMultiMediaTime.prototype =
+{
+    from_buffer: function(a, at)
+    {
+        at = at || 0;
+        var dv = new SpiceDataView(a);
+        this.multi_media_time = dv.getUint32(at, true); at += 4;
+    },
+}
+
 function SpiceMsgSetAck(a, at)
 {
     this.from_buffer(a, at);
@@ -1327,6 +1342,7 @@ export {
   SpiceMsgMainMouseMode,
   SpiceMsgMainAgentData,
   SpiceMsgMainAgentTokens,
+  SpiceMsgMainMultiMediaTime,
   SpiceMsgSetAck,
   SpiceMsgcAckSync,
   SpiceMsgcMainMouseModeRequest,

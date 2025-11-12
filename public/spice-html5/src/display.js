@@ -81,8 +81,14 @@ SpiceDisplayConn.prototype.process_channel_message = function(msg)
 
     if (msg.type == Constants.SPICE_MSG_DISPLAY_MARK)
     {
-        // FIXME - DISPLAY_MARK not implemented (may be hard or impossible)
-        this.known_unimplemented(msg.type, "Display Mark");
+        // Display Mark is used as a synchronization point
+        // It ensures all previous drawing operations are complete
+        // In a web browser context with immediate drawing, this is essentially a no-op
+        // but we acknowledge it to avoid warnings
+        Utils.DEBUG > 2 && console.log(this.type + ": Display Mark received (sync point)");
+
+        // If there are any pending operations, this would be where we'd wait for them
+        // In our case, canvas operations are synchronous, so no action needed
         return true;
     }
 
@@ -482,7 +488,14 @@ SpiceDisplayConn.prototype.process_channel_message = function(msg)
 
     if (msg.type == Constants.SPICE_MSG_DISPLAY_INVAL_ALL_PALETTES)
     {
-        this.known_unimplemented(msg.type, "Inval All Palettes");
+        // Clear all palette caches
+        // Palettes are used for indexed color images
+        // This message tells us to invalidate all palette caches
+        if (this.palette_cache)
+        {
+            Utils.DEBUG > 1 && console.log(this.type + ": Invalidating all palettes");
+            this.palette_cache = {};
+        }
         return true;
     }
 
