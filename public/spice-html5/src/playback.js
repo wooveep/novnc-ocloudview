@@ -165,6 +165,11 @@ SpicePlaybackConn.prototype.process_channel_message = function(msg)
 
     if (msg.type == Constants.SPICE_MSG_PLAYBACK_STOP)
     {
+        // Log message details for debugging
+        console.log("🔊 [DEBUG] SPICE_MSG_PLAYBACK_STOP received");
+        console.log("  - Message type:", msg.type);
+        console.log("  - Has source_buffer:", !!this.source_buffer);
+
         Utils.PLAYBACK_DEBUG > 0 && console.log("PlaybackStop");
         if (this.source_buffer)
         {
@@ -178,9 +183,8 @@ SpicePlaybackConn.prototype.process_channel_message = function(msg)
             this.append_okay = false;
             this.queue = new Array();
             this.start_time = 0;
-
-            return true;
         }
+        return true; // Always return true to acknowledge the message
     }
 
     if (msg.type == Constants.SPICE_MSG_PLAYBACK_VOLUME)

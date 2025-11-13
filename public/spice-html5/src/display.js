@@ -81,14 +81,16 @@ SpiceDisplayConn.prototype.process_channel_message = function(msg)
 
     if (msg.type == Constants.SPICE_MSG_DISPLAY_MARK)
     {
-        // Display Mark is used as a synchronization point
-        // It ensures all previous drawing operations are complete
-        // In a web browser context with immediate drawing, this is essentially a no-op
-        // but we acknowledge it to avoid warnings
-        Utils.DEBUG > 2 && console.log(this.type + ": Display Mark received (sync point)");
+        // Log message details for debugging non-standard server implementations
+        console.log("🔖 [DEBUG] SPICE_MSG_DISPLAY_MARK received");
+        console.log("  - Message type:", msg.type);
+        console.log("  - Message data length:", msg.data ? msg.data.byteLength : 0);
+        if (msg.data && msg.data.byteLength > 0) {
+            console.log("  - Raw data (hex):", Array.from(new Uint8Array(msg.data)).map(b => b.toString(16).padStart(2, '0')).join(' '));
+        }
 
-        // If there are any pending operations, this would be where we'd wait for them
-        // In our case, canvas operations are synchronous, so no action needed
+        // TODO: Implement display synchronization after understanding server behavior
+        // For now, just acknowledge the message (canvas ops are synchronous anyway)
         return true;
     }
 
@@ -488,14 +490,17 @@ SpiceDisplayConn.prototype.process_channel_message = function(msg)
 
     if (msg.type == Constants.SPICE_MSG_DISPLAY_INVAL_ALL_PALETTES)
     {
-        // Clear all palette caches
-        // Palettes are used for indexed color images
-        // This message tells us to invalidate all palette caches
-        if (this.palette_cache)
-        {
-            Utils.DEBUG > 1 && console.log(this.type + ": Invalidating all palettes");
-            this.palette_cache = {};
+        // Log message details for debugging non-standard server implementations
+        console.log("📋 [DEBUG] SPICE_MSG_DISPLAY_INVAL_ALL_PALETTES received");
+        console.log("  - Message type:", msg.type);
+        console.log("  - Message data length:", msg.data ? msg.data.byteLength : 0);
+        if (msg.data && msg.data.byteLength > 0) {
+            var dv = new DataView(msg.data);
+            console.log("  - Raw data (hex):", Array.from(new Uint8Array(msg.data)).map(b => b.toString(16).padStart(2, '0')).join(' '));
         }
+
+        // TODO: Implement palette cache invalidation after understanding server behavior
+        // For now, just acknowledge the message
         return true;
     }
 
