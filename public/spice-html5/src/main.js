@@ -140,7 +140,16 @@ SpiceMainConn.prototype.process_channel_message = function(msg)
 
     if (msg.type == Constants.SPICE_MSG_MAIN_MULTI_MEDIA_TIME)
     {
-        this.known_unimplemented(msg.type, "Main Multi Media Time");
+        // Update multimedia time synchronization with server
+        var mm_time_msg = new Messages.SpiceMsgMainMultiMediaTime(msg.data);
+
+        DEBUG > 1 && this.log_info("Multimedia time update: " + mm_time_msg.multi_media_time);
+
+        // Update our time tracking
+        // This keeps the client synchronized with the server's multimedia timeline
+        this.our_mm_time = Date.now();
+        this.mm_time = mm_time_msg.multi_media_time;
+
         return true;
     }
 
