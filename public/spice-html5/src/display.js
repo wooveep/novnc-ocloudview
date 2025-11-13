@@ -914,8 +914,10 @@ SpiceDisplayConn.prototype.hook_events = function()
         canvas.addEventListener('mousedown', Inputs.handle_mousedown);
         canvas.addEventListener('contextmenu', Inputs.handle_contextmenu);
         canvas.addEventListener('mouseup', Inputs.handle_mouseup);
-        canvas.addEventListener('keydown', Inputs.handle_keydown);
-        canvas.addEventListener('keyup', Inputs.handle_keyup);
+        // Use capture mode (true) to intercept keyboard events before browser default handling
+        // This allows special keys like Windows/Meta key to pass through to the VM
+        canvas.addEventListener('keydown', Inputs.handle_keydown, true);
+        canvas.addEventListener('keyup', Inputs.handle_keyup, true);
         canvas.addEventListener('mouseout', handle_mouseout);
         canvas.addEventListener('mouseover', handle_mouseover);
         canvas.addEventListener('wheel', Inputs.handle_mousewheel);
@@ -932,8 +934,9 @@ SpiceDisplayConn.prototype.unhook_events = function()
         canvas.removeEventListener('mousedown', Inputs.handle_mousedown);
         canvas.removeEventListener('contextmenu', Inputs.handle_contextmenu);
         canvas.removeEventListener('mouseup', Inputs.handle_mouseup);
-        canvas.removeEventListener('keydown', Inputs.handle_keydown);
-        canvas.removeEventListener('keyup', Inputs.handle_keyup);
+        // Must match capture mode used in addEventListener
+        canvas.removeEventListener('keydown', Inputs.handle_keydown, true);
+        canvas.removeEventListener('keyup', Inputs.handle_keyup, true);
         canvas.removeEventListener('mouseout', handle_mouseout);
         canvas.removeEventListener('mouseover', handle_mouseover);
         canvas.removeEventListener('wheel', Inputs.handle_mousewheel);
