@@ -380,28 +380,43 @@
         
         // 渲染虚拟机操作按钮
         function renderVMActions(vm) {
-            const isRunning = vm.status === 'running';
-            const isStopped = vm.status === 'stopped' || vm.status === 'shutoff';
-            const showForceReset = !isStopped; // 非停止状态显示强制重启按钮
+            // 共享桌面池：始终显示连接桌面按钮
+            if (vm.type === 'desk_pool') {
+                return `
+                    <button class="btn btn-primary" style="flex: 1;" onclick="connectVM('${vm.id}')">
+                        🖥️ 连接桌面
+                    </button>
+                `;
+            }
 
-            if (isRunning) {
-                return `
-                    <button class="btn btn-primary" style="flex: 1;" onclick="connectVM('${vm.id}')">
-                        连接桌面
-                    </button>
-                    <button class="btn btn-warning" style="flex: 0 0 auto; padding: 10px 15px;"
-                            onclick="forceResetVM('${vm.id}')" title="强制重启">
-                        ⚡ 强制重启
-                    </button>
-                `;
-            } else if (isStopped) {
-                return `
-                    <button class="btn btn-primary" style="flex: 1;" onclick="connectVM('${vm.id}')">
-                        连接桌面
-                    </button>
-                `;
+            // 独立虚拟机：根据状态码判断
+            // statusCode: 0=关机, 1=启动, 2=挂起, 3=休眠, 5=操作中, 6=升级中
+            const canConnect = vm.statusCode === 0 || vm.statusCode === 1 || vm.statusCode === 3;
+            const isRunning = vm.status === 'running' || vm.statusCode === 1;
+            const isStopped = vm.status === 'stopped' || vm.status === 'shutoff' || vm.statusCode === 0;
+            const showForceReset = !isStopped;
+
+            if (canConnect) {
+                if (isRunning) {
+                    return `
+                        <button class="btn btn-primary" style="flex: 1;" onclick="connectVM('${vm.id}')">
+                            🖥️ 连接桌面
+                        </button>
+                        <button class="btn btn-warning" style="flex: 0 0 auto; padding: 10px 15px;"
+                                onclick="forceResetVM('${vm.id}')" title="强制重启">
+                            ⚡ 强制重启
+                        </button>
+                    `;
+                } else {
+                    // 关机(0)或休眠(3)状态，显示连接桌面（会先启动）
+                    return `
+                        <button class="btn btn-primary" style="flex: 1;" onclick="connectVM('${vm.id}')">
+                            🖥️ 连接桌面
+                        </button>
+                    `;
+                }
             } else if (showForceReset) {
-                // 其他状态（suspended, paused, crashed等）显示强制重启
+                // 其他状态（挂起、操作中、升级中等）显示强制重启
                 return `
                     <button class="btn" style="flex: 1;" disabled>
                         不可用
@@ -434,19 +449,48 @@
 
         // 连接虚拟机
         async function connectVM(vmId) {
-            const defaultProtocol = getDefaultProtocol();
-            console.log('🔌 connectVM called:', { vmId, defaultProtocol });
+            console.log('🔌 connectVM called:', { vmId });
 
-            // 查找虚拟机状态
+            // 查找虚拟机信息
             const vm = vms.find(v => v.id === vmId);
             if (!vm) {
                 Utils.showError('未找到虚拟机');
                 return;
             }
 
-            // 如果虚拟机已关机，先启动
-            if (vm.status === 'stopped' || vm.status === 'shutoff') {
-                console.log('⚡ VM is offline, starting it first...');
+            // 共享桌面池：直接使用 SPICE 连接
+            if (vm.type === 'desk_pool') {
+                console.log('🏊 Connecting to desk pool:', vmId);
+                Utils.showLoading('正在连接共享桌面池...');
+
+                try {
+                    const response = await API.deskPool.connectSpice(vmId);
+
+                    if (response.success) {
+                        console.log('✅ Desk pool connection successful:', response.data);
+                        // 使用返回的实际 vmId 跳转到 SPICE 页面
+                        const actualVmId = response.data.vmId;
+                        const spiceUrl = `/spice.html?id=${actualVmId}&token=${Utils.getToken()}&deskPoolId=${vmId}`;
+                        window.location.href = spiceUrl;
+                    } else {
+                        throw new Error(response.message || '连接共享桌面池失败');
+                    }
+                } catch (error) {
+                    console.error('❌ Connect desk pool error:', error);
+                    Utils.showError('连接共享桌面池失败: ' + error.message);
+                } finally {
+                    Utils.hideLoading();
+                }
+                return;
+            }
+
+            // 独立虚拟机连接逻辑
+            const defaultProtocol = getDefaultProtocol();
+            console.log('🔌 Regular VM connection:', { vmId, defaultProtocol, statusCode: vm.statusCode });
+
+            // 如果虚拟机已关机或休眠，先启动
+            if (vm.statusCode === 0 || vm.statusCode === 3) {
+                console.log('⚡ VM is offline (status code:', vm.statusCode, '), starting it first...');
                 Utils.showLoading('虚拟机已关机，正在启动...');
 
                 try {

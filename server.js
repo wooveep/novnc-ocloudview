@@ -201,7 +201,7 @@ class OcloudviewService {
   // 获取虚拟机列表（从登录返回的数据中解析）
   parseVMList(machines) {
     const vmList = [];
-    
+
     // 处理独立虚拟机
     if (machines.domain && Array.isArray(machines.domain)) {
       machines.domain.forEach(vm => {
@@ -209,12 +209,14 @@ class OcloudviewService {
           id: vm.id,
           name: vm.name,
           status: this.getVMStatus(vm.status),
+          statusCode: vm.status, // 保存原始状态码
           cpu: vm.cpu,
           memory: Math.round(vm.memory / 1024), // 转换为GB
           os: vm.osEdition || vm.osType,
           type: 'domain',
           hostId: vm.hostId,
           isConnected: vm.isConnected,
+          gpuType: vm.gpuType || '',
         });
       });
     }
@@ -225,7 +227,8 @@ class OcloudviewService {
         vmList.push({
           id: vm.id,
           name: vm.name,
-          status: this.getVMStatus(vm.status),
+          status: 'desk_pool', // 共享池显示特殊状态
+          statusCode: vm.status, // 保存原始状态码
           cpu: vm.cpu || '-',
           memory: vm.memory ? Math.round(vm.memory / 1024) : '-',
           os: vm.osEdition || '-',
@@ -240,14 +243,15 @@ class OcloudviewService {
 
   // 转换虚拟机状态
   getVMStatus(statusCode) {
-    // 状态码映射（根据 OcloudView 实际定义调整）
+    // 状态码映射（根据 OcloudView 实际定义）
+    // 0: 关机, 1: 启动, 2: 挂起, 3: 休眠, 5: 操作中, 6: 升级中
     const statusMap = {
-      0: 'stopped',
-      1: 'running',
-      2: 'suspended',
-      3: 'paused',
-      4: 'shutoff',
-      5: 'crashed',
+      0: 'stopped',      // 关机
+      1: 'running',      // 启动
+      2: 'suspended',    // 挂起
+      3: 'hibernated',   // 休眠
+      5: 'operating',    // 操作中
+      6: 'upgrading',    // 升级中
     };
     return statusMap[statusCode] || 'unknown';
   }
@@ -479,6 +483,117 @@ class OcloudviewService {
         logger.error(`   Response data:`, error.response.data);
       }
       throw new Error('强制重启虚拟机失败: ' + error.message);
+    }
+  }
+
+  // 获取共享桌面池连接信息 (doubleclick2 for desk_pool)
+  async getDeskPoolConnectionInfo(token, deskId, username) {
+    try {
+      logger.debug(`🔄 [Desk Pool API] Fetching connection info for desk pool: ${deskId}`);
+      logger.debug(`   Username: ${username}`);
+
+      const response = await this.client.post('/ocloud/usermodule/doubleclick2',
+        {
+          sAMAccountName: username,
+          deskId: deskId,
+        },
+        {
+          headers: { 'token_login': token },
+        }
+      );
+
+      const data = response.data;
+
+      logger.debug(`📥 [Desk Pool API] Response:`, {
+        returnCode: data.returnCode,
+        status: data.status,
+        hasData: !!data.data,
+      });
+
+      if (data.returnCode !== 200) {
+        throw new Error(data.msg || '获取共享桌面池连接信息失败');
+      }
+
+      // 返回连接信息
+      return {
+        hostIp: data.data.hostip || data.data.ip,
+        hostIpV6: data.data.hostIpV6,
+        hostId: data.data.hostId,
+        vmName: data.data.name,
+        vmId: data.data.uuid,
+        spicePort: parseInt(data.data.spiceport),
+        userId: data.data.userid,
+        key: data.data.key,
+        osEdition: data.data.osEdition,
+        cloneType: data.data.cloneType,
+        extranetAccess: data.data.extranetAccess,
+        disableAlpha: data.data.disableAlpha,
+        domainIPs: data.data.list || [],
+      };
+    } catch (error) {
+      logger.error(`❌ [Desk Pool API] Error:`, error.message);
+      throw new Error('获取共享桌面池连接信息失败: ' + error.message);
+    }
+  }
+
+  // 获取共享桌面池的SPICE连接信息
+  async getDeskPoolSPICEConnectionInfo(token, deskId, username) {
+    try {
+      logger.debug(`🔄 [Desk Pool SPICE API] Fetching SPICE info for desk pool: ${deskId}`);
+
+      // 先获取基本连接信息
+      const connectionInfo = await this.getDeskPoolConnectionInfo(token, deskId, username);
+
+      // SPICE 个性化配置（默认配置）
+      const defaultPersonConfig = {
+        bandwidthLimit: 12,
+        frameRate: 25,
+        spiceDecodePixFormat: 1,
+        spiceDecodeType: 1,
+        spiceEncodeFormat: 0,
+        spiceGameMode: 1,
+        spiceMouseMode: 0
+      };
+
+      const requestData = {
+        connectType: 'ocloudview',
+        personConfig: JSON.stringify(defaultPersonConfig),
+        uuid: connectionInfo.vmId,
+      };
+
+      logger.debug(`   Request data for get-connection-info:`, {
+        connectType: requestData.connectType,
+        uuid: requestData.uuid,
+      });
+
+      const response = await this.client.post('/ocloud/usermodule/get-connection-info',
+        requestData,
+        {
+          headers: { 'token_login': token },
+        }
+      );
+
+      const data = response.data;
+
+      if (data.returnCode !== 200) {
+        throw new Error(data.msg || '获取SPICE连接信息失败');
+      }
+
+      logger.debug(`✅ [Desk Pool SPICE API] Successfully retrieved SPICE info for desk pool`);
+
+      return {
+        hostIp: connectionInfo.hostIp,
+        hostId: connectionInfo.hostId,
+        vmId: connectionInfo.vmId,
+        vmName: connectionInfo.vmName,
+        spicePort: connectionInfo.spicePort,
+        spicePassword: data.data.password,
+        key: connectionInfo.key,
+        domainIPs: connectionInfo.domainIPs,
+      };
+    } catch (error) {
+      logger.error(`❌ [Desk Pool SPICE API] Error:`, error.message);
+      throw new Error('获取共享桌面池SPICE连接信息失败: ' + error.message);
     }
   }
 }
@@ -911,6 +1026,70 @@ app.get('/api/spice/connect/:vmId', authMiddleware, async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to get SPICE connection',
+      message: error.message,
+    });
+  }
+});
+
+// 共享桌面池 SPICE 连接接口
+app.get('/api/desk-pool/spice/connect/:deskId', authMiddleware, async (req, res) => {
+  try {
+    const deskId = req.params.deskId;
+    const username = req.user.username;
+
+    logger.debug(`📞 Desk Pool SPICE connect request for desk pool: ${deskId}, user: ${username}`);
+
+    // 获取共享桌面池 SPICE 连接信息
+    const spiceInfo = await ocloudviewService.getDeskPoolSPICEConnectionInfo(req.ocloudToken, deskId, username);
+
+    logger.debug(`📊 Desk Pool SPICE Info retrieved:`, {
+      host: spiceInfo.hostIp,
+      port: spiceInfo.spicePort,
+      vmId: spiceInfo.vmId,
+      vmName: spiceInfo.vmName,
+      hasPassword: !!spiceInfo.spicePassword,
+    });
+
+    // 缓存 SPICE 连接信息到 session
+    const sessionData = sessionStore.get(req.user.sessionId);
+    if (sessionData) {
+      if (!sessionData.spiceConnections) {
+        sessionData.spiceConnections = new Map();
+      }
+      // 使用返回的实际 vmId 作为 key
+      sessionData.spiceConnections.set(spiceInfo.vmId, {
+        host: spiceInfo.hostIp,
+        port: spiceInfo.spicePort,
+        password: spiceInfo.spicePassword,
+        timestamp: Date.now(),
+        deskPoolId: deskId,
+      });
+      logger.debug(`✅ Desk Pool SPICE info cached in session for VM ${spiceInfo.vmId}`);
+    }
+
+    // 生成 WebSocket URL（使用实际的 vmId）
+    const wsProtocol = req.secure ? 'wss' : 'ws';
+    const wsHost = req.get('host');
+    const wsUrl = `${wsProtocol}://${wsHost}/spice/${spiceInfo.vmId}`;
+
+    res.json({
+      success: true,
+      data: {
+        host: spiceInfo.hostIp,
+        port: spiceInfo.spicePort,
+        password: spiceInfo.spicePassword,
+        vmId: spiceInfo.vmId,
+        vmName: spiceInfo.vmName,
+        websocketUrl: wsUrl,
+        protocol: 'spice',
+        deskPoolId: deskId,
+      },
+    });
+  } catch (error) {
+    logger.error('❌ Get Desk Pool SPICE connection error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get desk pool SPICE connection',
       message: error.message,
     });
   }
