@@ -132,6 +132,16 @@ SpiceWireReader.prototype =
 
 function wire_blob_catcher(e)
 {
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("📨 [WebSocket] Message received from server");
+    console.log("   Connection ID: " + this.wire_reader.sc.connection_id);
+    console.log("   Channel type: " + this.wire_reader.sc.type);
+    console.log("   State: " + this.wire_reader.sc.state);
+    console.log("   Data size: " + e.data.byteLength + " bytes");
+    console.log("   Needed bytes: " + this.wire_reader.needed);
+    console.log("   Buffered bytes: " + this.wire_reader.size);
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
     DEBUG > 1 && console.log(">> WebSockets.onmessage");
     DEBUG > 1 && console.log("id " + this.wire_reader.sc.connection_id +"; type " + this.wire_reader.sc.type);
     SpiceWireReader.prototype.inbound.call(this.wire_reader, e.data);

@@ -999,6 +999,26 @@ const wss = new WebSocket.Server({
   server,
   noServer: false,
   // 移除 path 限制，允许 /vnc/* 格式的路径
+  // Handle WebSocket subprotocols (SPICE client uses 'binary' subprotocol)
+  handleProtocols: (protocols, request) => {
+    console.log(`🔌 [WebSocket] Client requested protocols: ${Array.from(protocols).join(', ')}`);
+
+    // Accept 'binary' subprotocol for SPICE connections
+    if (protocols.has('binary')) {
+      console.log(`   ✅ Accepting 'binary' subprotocol`);
+      return 'binary';
+    }
+
+    // For VNC or other connections, accept the first protocol or empty string
+    const firstProtocol = protocols.values().next().value;
+    if (firstProtocol) {
+      console.log(`   ✅ Accepting '${firstProtocol}' subprotocol`);
+      return firstProtocol;
+    }
+
+    console.log(`   ℹ️  No subprotocol requested, accepting connection anyway`);
+    return false; // No subprotocol
+  }
 });
 
 // 初始化WebsockifyProxy (基于websockify-js架构)
