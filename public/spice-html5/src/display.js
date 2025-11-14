@@ -82,11 +82,11 @@ SpiceDisplayConn.prototype.process_channel_message = function(msg)
     if (msg.type == Constants.SPICE_MSG_DISPLAY_MARK)
     {
         // Log message details for debugging non-standard server implementations
-        console.log("🔖 [DEBUG] SPICE_MSG_DISPLAY_MARK received");
-        console.log("  - Message type:", msg.type);
-        console.log("  - Message data length:", msg.data ? msg.data.byteLength : 0);
+        logger.debug("🔖 [DEBUG] SPICE_MSG_DISPLAY_MARK received");
+        logger.debug("  - Message type:", msg.type);
+        logger.debug("  - Message data length:", msg.data ? msg.data.byteLength : 0);
         if (msg.data && msg.data.byteLength > 0) {
-            console.log("  - Raw data (hex):", Array.from(new Uint8Array(msg.data)).map(b => b.toString(16).padStart(2, '0')).join(' '));
+            logger.debug("  - Raw data (hex):", Array.from(new Uint8Array(msg.data)).map(b => b.toString(16).padStart(2, '0')).join(' '));
         }
 
         // TODO: Implement display synchronization after understanding server behavior
@@ -96,7 +96,7 @@ SpiceDisplayConn.prototype.process_channel_message = function(msg)
 
     if (msg.type == Constants.SPICE_MSG_DISPLAY_RESET)
     {
-        Utils.DEBUG > 2 && console.log("Display reset");
+        Utils.DEBUG > 2 && logger.debug("Display reset");
         this.surfaces[this.primary_surface].canvas.context.restore();
         return true;
     }
@@ -491,12 +491,12 @@ SpiceDisplayConn.prototype.process_channel_message = function(msg)
     if (msg.type == Constants.SPICE_MSG_DISPLAY_INVAL_ALL_PALETTES)
     {
         // Log message details for debugging non-standard server implementations
-        console.log("📋 [DEBUG] SPICE_MSG_DISPLAY_INVAL_ALL_PALETTES received");
-        console.log("  - Message type:", msg.type);
-        console.log("  - Message data length:", msg.data ? msg.data.byteLength : 0);
+        logger.debug("📋 [DEBUG] SPICE_MSG_DISPLAY_INVAL_ALL_PALETTES received");
+        logger.debug("  - Message type:", msg.type);
+        logger.debug("  - Message data length:", msg.data ? msg.data.byteLength : 0);
         if (msg.data && msg.data.byteLength > 0) {
             var dv = new DataView(msg.data);
-            console.log("  - Raw data (hex):", Array.from(new Uint8Array(msg.data)).map(b => b.toString(16).padStart(2, '0')).join(' '));
+            logger.debug("  - Raw data (hex):", Array.from(new Uint8Array(msg.data)).map(b => b.toString(16).padStart(2, '0')).join(' '));
         }
 
         // TODO: Implement palette cache invalidation after understanding server behavior
@@ -510,7 +510,7 @@ SpiceDisplayConn.prototype.process_channel_message = function(msg)
             this.surfaces = [];
 
         var m = new Messages.SpiceMsgSurfaceCreate(msg.data);
-        Utils.DEBUG > 1 && console.log(this.type + ": MsgSurfaceCreate id " + m.surface.surface_id
+        Utils.DEBUG > 1 && logger.debug(this.type + ": MsgSurfaceCreate id " + m.surface.surface_id
                                     + "; " + m.surface.width + "x" + m.surface.height
                                     + "; format " + m.surface.format
                                     + "; flags " + m.surface.flags);
@@ -553,7 +553,7 @@ SpiceDisplayConn.prototype.process_channel_message = function(msg)
     if (msg.type == Constants.SPICE_MSG_DISPLAY_SURFACE_DESTROY)
     {
         var m = new Messages.SpiceMsgSurfaceDestroy(msg.data);
-        Utils.DEBUG > 1 && console.log(this.type + ": MsgSurfaceDestroy id " + m.surface_id);
+        Utils.DEBUG > 1 && logger.debug(this.type + ": MsgSurfaceDestroy id " + m.surface_id);
         this.delete_surface(m.surface_id);
         return true;
     }
@@ -561,14 +561,14 @@ SpiceDisplayConn.prototype.process_channel_message = function(msg)
     if (msg.type == Constants.SPICE_MSG_DISPLAY_STREAM_CREATE)
     {
         var m = new Messages.SpiceMsgDisplayStreamCreate(msg.data);
-        Utils.STREAM_DEBUG > 0 && console.log(this.type + ": MsgStreamCreate id" + m.id + "; type " + m.codec_type +
+        Utils.STREAM_DEBUG > 0 && logger.debug(this.type + ": MsgStreamCreate id" + m.id + "; type " + m.codec_type +
                                         "; width " + m.stream_width + "; height " + m.stream_height +
                                         "; left " + m.dest.left + "; top " + m.dest.top
                                         );
         if (!this.streams)
             this.streams = new Array();
         if (this.streams[m.id])
-            console.log("Stream " + m.id + " already exists");
+            logger.debug("Stream " + m.id + " already exists");
         else
             this.streams[m.id] = m;
 
@@ -645,12 +645,12 @@ SpiceDisplayConn.prototype.process_channel_message = function(msg)
             media.spiceconn = this;
             v.spice_stream = s;
 
-            Utils.STREAM_DEBUG > 0 && console.log("H.264 stream created, id: " + m.id);
+            Utils.STREAM_DEBUG > 0 && logger.debug("H.264 stream created, id: " + m.id);
         }
         else if (m.codec_type == Constants.SPICE_VIDEO_CODEC_TYPE_MJPEG)
             this.streams[m.id].frames_loading = 0;
         else
-            console.log("Unhandled stream codec: "+m.codec_type);
+            logger.debug("Unhandled stream codec: "+m.codec_type);
         return true;
     }
 
@@ -665,7 +665,7 @@ SpiceDisplayConn.prototype.process_channel_message = function(msg)
 
         if (!this.streams[m.base.id])
         {
-            console.log("no stream for data");
+            logger.debug("no stream for data");
             return false;
         }
 
@@ -701,7 +701,7 @@ SpiceDisplayConn.prototype.process_channel_message = function(msg)
     if (msg.type == Constants.SPICE_MSG_DISPLAY_STREAM_CLIP)
     {
         var m = new Messages.SpiceMsgDisplayStreamClip(msg.data);
-        Utils.STREAM_DEBUG > 1 && console.log(this.type + ": MsgStreamClip id" + m.id);
+        Utils.STREAM_DEBUG > 1 && logger.debug(this.type + ": MsgStreamClip id" + m.id);
         this.streams[m.id].clip = m.clip;
         return true;
     }
@@ -709,7 +709,7 @@ SpiceDisplayConn.prototype.process_channel_message = function(msg)
     if (msg.type == Constants.SPICE_MSG_DISPLAY_STREAM_DESTROY)
     {
         var m = new Messages.SpiceMsgDisplayStreamDestroy(msg.data);
-        Utils.STREAM_DEBUG > 0 && console.log(this.type + ": MsgStreamDestroy id" + m.id);
+        Utils.STREAM_DEBUG > 0 && logger.debug(this.type + ": MsgStreamDestroy id" + m.id);
 
         if (this.streams[m.id].codec_type == Constants.SPICE_VIDEO_CODEC_TYPE_VP8)
         {
@@ -725,7 +725,7 @@ SpiceDisplayConn.prototype.process_channel_message = function(msg)
             this.streams[m.id].media = null;
             this.streams[m.id].video = null;
             this.streams[m.id].data_buffer = null;
-            Utils.STREAM_DEBUG > 0 && console.log("H.264 stream destroyed, id: " + m.id);
+            Utils.STREAM_DEBUG > 0 && logger.debug("H.264 stream destroyed, id: " + m.id);
         }
         this.streams[m.id] = undefined;
         return true;
@@ -741,7 +741,7 @@ SpiceDisplayConn.prototype.process_channel_message = function(msg)
     {
         var m = new Messages.SpiceMsgDisplayInvalList(msg.data);
         var i;
-        Utils.DEBUG > 1 && console.log(this.type + ": MsgInvalList " + m.count + " items");
+        Utils.DEBUG > 1 && logger.debug(this.type + ": MsgInvalList " + m.count + " items");
         for (i = 0; i < m.count; i++)
             if (this.cache[m.resources[i].id] != undefined)
                 delete this.cache[m.resources[i].id];
@@ -901,7 +901,7 @@ SpiceDisplayConn.prototype.log_draw = function(prefix, draw)
             str += "; mask.bitmap is null";
     }
 
-    console.log(str);
+    logger.debug(str);
 }
 
 SpiceDisplayConn.prototype.hook_events = function()
@@ -1078,7 +1078,7 @@ function handle_h264_source_open(e)
         return;
     }
 
-    Utils.STREAM_DEBUG > 0 && console.log("H.264 source opening with codec: " + codec);
+    Utils.STREAM_DEBUG > 0 && logger.debug("H.264 source opening with codec: " + codec);
 
     var s = this.addSourceBuffer(codec);
     if (!s)
@@ -1095,7 +1095,7 @@ function handle_h264_source_open(e)
     try {
         s.mode = 'sequence';
     } catch (e) {
-        Utils.STREAM_DEBUG > 0 && console.log("Could not set source buffer mode to sequence: " + e.message);
+        Utils.STREAM_DEBUG > 0 && logger.debug("Could not set source buffer mode to sequence: " + e.message);
     }
 
     s.addEventListener('error', handle_h264_buffer_error, false);
@@ -1103,7 +1103,7 @@ function handle_h264_source_open(e)
 
     stream.append_okay = true;
 
-    Utils.STREAM_DEBUG > 0 && console.log("H.264 source buffer ready");
+    Utils.STREAM_DEBUG > 0 && logger.debug("H.264 source buffer ready");
 }
 
 function handle_h264_buffer_error(e)
@@ -1150,7 +1150,7 @@ function handle_append_h264_buffer_done(e)
     if (!stream.video)
     {
         if (Utils.STREAM_DEBUG > 0)
-            console.log("Stream id " + stream.id + " received updateend after video is gone.");
+            logger.debug("Stream id " + stream.id + " received updateend after video is gone.");
         return;
     }
 
@@ -1159,14 +1159,14 @@ function handle_append_h264_buffer_done(e)
         stream.video.play();
 
     if (Utils.STREAM_DEBUG > 1)
-        console.log(stream.video.currentTime + ":id " +  stream.id + " H.264 updateend");
+        logger.debug(stream.video.currentTime + ":id " +  stream.id + " H.264 updateend");
 }
 
 function push_or_queue_h264(stream, msg, data)
 {
     if (!stream.source_buffer)
     {
-        Utils.STREAM_DEBUG > 0 && console.log("No source buffer for H.264 stream " + stream.id);
+        Utils.STREAM_DEBUG > 0 && logger.debug("No source buffer for H.264 stream " + stream.id);
         return;
     }
 
@@ -1185,11 +1185,11 @@ function process_h264_stream_data(stream, msg)
 {
     if (!stream || !msg || !msg.data)
     {
-        Utils.STREAM_DEBUG > 0 && console.log("Invalid H.264 stream data");
+        Utils.STREAM_DEBUG > 0 && logger.debug("Invalid H.264 stream data");
         return;
     }
 
-    Utils.STREAM_DEBUG > 1 && console.log("Processing H.264 stream data, size: " + msg.data.byteLength);
+    Utils.STREAM_DEBUG > 1 && logger.debug("Processing H.264 stream data, size: " + msg.data.byteLength);
 
     // For H.264, we expect the data to be in a format compatible with MediaSource
     // This could be:
@@ -1205,7 +1205,7 @@ function process_mjpeg_stream_data(sc, m, time_until_due)
     // Validate streams exists
     if (!sc.streams || !sc.streams[m.base.id])
     {
-        Utils.DEBUG > 0 && console.log("Discarding mjpeg stream data; stream not found:", m.base.id);
+        Utils.DEBUG > 0 && logger.debug("Discarding mjpeg stream data; stream not found:", m.base.id);
         return;
     }
 
@@ -1252,7 +1252,7 @@ function process_stream_data_report(sc, id, msg_mmtime, time_until_due)
     // Validate streams and report exists
     if (!sc.streams || !sc.streams[id] || !sc.streams[id].report)
     {
-        Utils.DEBUG > 0 && console.log("Cannot process stream data report; stream or report not found:", id);
+        Utils.DEBUG > 0 && logger.debug("Cannot process stream data report; stream or report not found:", id);
         return;
     }
 
@@ -1362,14 +1362,14 @@ function handle_append_video_buffer_done(e)
     if (!stream.video)
     {
         if (Utils.STREAM_DEBUG > 0)
-            console.log("Stream id " + stream.id + " received updateend after video is gone.");
+            logger.debug("Stream id " + stream.id + " received updateend after video is gone.");
         return;
     }
 
     if (stream.video.buffered.length > 0 &&
         stream.video.currentTime < stream.video.buffered.start(stream.video.buffered.length - 1))
     {
-        console.log("Video appears to have fallen behind; advancing to " +
+        logger.debug("Video appears to have fallen behind; advancing to " +
             stream.video.buffered.start(stream.video.buffered.length - 1));
         stream.video.currentTime = stream.video.buffered.start(stream.video.buffered.length - 1);
     }
@@ -1379,7 +1379,7 @@ function handle_append_video_buffer_done(e)
         var promise = this.stream.video.play();
 
     if (Utils.STREAM_DEBUG > 1)
-        console.log(stream.video.currentTime + ":id " +  stream.id + " updateend " + Utils.dump_media_element(stream.video));
+        logger.debug(stream.video.currentTime + ":id " +  stream.id + " updateend " + Utils.dump_media_element(stream.video));
 }
 
 function handle_video_buffer_error(e)
@@ -1449,18 +1449,18 @@ function video_handle_event_debug(e)
     if (s.video)
     {
         if (Utils.STREAM_DEBUG > 0 || s.video.buffered.len > 1)
-            console.log(s.video.currentTime + ":id " +  s.id + " event " + e.type +
+            logger.debug(s.video.currentTime + ":id " +  s.id + " event " + e.type +
                 Utils.dump_media_element(s.video));
     }
 
     if (Utils.STREAM_DEBUG > 1 && s.media)
-        console.log("  media_source " + Utils.dump_media_source(s.media));
+        logger.debug("  media_source " + Utils.dump_media_source(s.media));
 
     if (Utils.STREAM_DEBUG > 1 && s.source_buffer)
-        console.log("  source_buffer " + Utils.dump_source_buffer(s.source_buffer));
+        logger.debug("  source_buffer " + Utils.dump_source_buffer(s.source_buffer));
 
     if (Utils.STREAM_DEBUG > 1 || s.queue.length > 1)
-        console.log('  queue len ' + s.queue.length + '; append_okay: ' + s.append_okay);
+        logger.debug('  queue len ' + s.queue.length + '; append_okay: ' + s.append_okay);
 }
 
 function video_debug_listen_for_one_event(name)

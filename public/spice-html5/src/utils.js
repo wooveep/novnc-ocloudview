@@ -87,13 +87,13 @@ function hexdump_buffer(a)
             }
 
             if (last_zeros == 0)
-                console.log(hex + " | " + str);
+                logger.debug(hex + " | " + str);
 
             if (hex == "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ")
             {
                 if (last_zeros == 1)
                 {
-                    console.log(".");
+                    logger.debug(".");
                     last_zeros++;
                 }
                 else if (last_zeros == 0)

@@ -74,15 +74,15 @@ function resize_helper(sc)
     // resolutions that fit within the current window
     if (sc.is_vgpu)
     {
-        console.log(`🎮 [vGPU] Resolution adjustment for vGPU VM (${sc.gpu_type || 'unknown'})`);
-        console.log(`  - Window size: ${original_w}x${original_h} (original)`);
-        console.log(`  - Adjusted size: ${w}x${h} (aligned to 8-pixel boundary)`);
-        console.log(`  - Requesting VM resolution: ${w}x${h}`);
-        console.log(`  - This ensures VM resolution ≤ window size`);
+        logger.debug(`🎮 [vGPU] Resolution adjustment for vGPU VM (${sc.gpu_type || 'unknown'})`);
+        logger.debug(`  - Window size: ${original_w}x${original_h} (original)`);
+        logger.debug(`  - Adjusted size: ${w}x${h} (aligned to 8-pixel boundary)`);
+        logger.debug(`  - Requesting VM resolution: ${w}x${h}`);
+        logger.debug(`  - This ensures VM resolution ≤ window size`);
     }
     else
     {
-        console.log(`🖥️  [Resize] Requesting resolution: ${w}x${h} (window: ${original_w}x${original_h})`);
+        logger.debug(`🖥️  [Resize] Requesting resolution: ${w}x${h} (window: ${original_w}x${original_h})`);
     }
 
     sc.resize_window(0, w, h, 32, 0, 0);

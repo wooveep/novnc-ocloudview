@@ -87,12 +87,12 @@ function SpiceConn(o)
     this.warnings = [];
 
     this.ws.addEventListener('open', function(e) {
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log("✅ [WebSocket] Connection OPENED");
-        console.log("   Connection ID: " + this.parent.connection_id);
-        console.log("   Channel type: " + this.parent.type);
-        console.log("   State: " + this.parent.state + " → start");
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        logger.debug("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        logger.debug("✅ [WebSocket] Connection OPENED");
+        logger.debug("   Connection ID: " + this.parent.connection_id);
+        logger.debug("   Channel type: " + this.parent.type);
+        logger.debug("   State: " + this.parent.state + " → start");
+        logger.debug("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
         /***********************************************************************
         **          WHERE IT ALL REALLY BEGINS
@@ -102,53 +102,53 @@ function SpiceConn(o)
         this.parent.state = "start";
     });
     this.ws.addEventListener('error', function(e) {
-        console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.error("❌ [WebSocket] Connection ERROR");
-        console.error("   Connection ID: " + this.parent.connection_id);
-        console.error("   Channel type: " + this.parent.type);
-        console.error("   State: " + this.parent.state);
-        console.error("   Error event:", e);
+        logger.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        logger.error("❌ [WebSocket] Connection ERROR");
+        logger.error("   Connection ID: " + this.parent.connection_id);
+        logger.error("   Channel type: " + this.parent.type);
+        logger.error("   State: " + this.parent.state);
+        logger.error("   Error event:", e);
         if ('url' in e.target) {
-            console.error("   URL: " + e.target.url);
+            logger.error("   URL: " + e.target.url);
             this.parent.log_err("WebSocket error: Can't connect to websocket on URL: " + e.target.url);
         }
-        console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        logger.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         this.parent.report_error(e);
     });
     this.ws.addEventListener('close', function(e) {
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log("🔌 [WebSocket] Connection CLOSED");
-        console.log("   Connection ID: " + this.parent.connection_id);
-        console.log("   Channel type: " + this.parent.type);
-        console.log("   State: " + this.parent.state);
-        console.log("   Close code: " + e.code);
-        console.log("   Close reason: " + (e.reason || '(no reason)'));
-        console.log("   Was clean: " + e.wasClean);
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        logger.debug("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        logger.debug("🔌 [WebSocket] Connection CLOSED");
+        logger.debug("   Connection ID: " + this.parent.connection_id);
+        logger.debug("   Channel type: " + this.parent.type);
+        logger.debug("   State: " + this.parent.state);
+        logger.debug("   Close code: " + e.code);
+        logger.debug("   Close reason: " + (e.reason || '(no reason)'));
+        logger.debug("   Was clean: " + e.wasClean);
+        logger.debug("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
         if (this.parent.state != "closing" && this.parent.state != "error" && this.parent.onerror !== undefined)
         {
             var e;
-            console.error("⚠️  [WebSocket] Unexpected close - generating error based on state");
+            logger.error("⚠️  [WebSocket] Unexpected close - generating error based on state");
             if (this.parent.state == "connecting")
             {
                 e = new Error("Connection refused.");
-                console.error("   Error type: Connection refused (state: connecting)");
+                logger.error("   Error type: Connection refused (state: connecting)");
             }
             else if (this.parent.state == "start" || this.parent.state == "link")
             {
                 e = new Error("Unexpected protocol mismatch.");
-                console.error("   Error type: Protocol mismatch (state: " + this.parent.state + ")");
+                logger.error("   Error type: Protocol mismatch (state: " + this.parent.state + ")");
             }
             else if (this.parent.state == "ticket")
             {
                 e = new Error("Bad password.");
-                console.error("   Error type: Bad password (state: ticket)");
+                logger.error("   Error type: Bad password (state: ticket)");
             }
             else
             {
                 e = new Error("Unexpected close while " + this.parent.state);
-                console.error("   Error type: Unexpected close (state: " + this.parent.state + ")");
+                logger.error("   Error type: Unexpected close (state: " + this.parent.state + ")");
             }
 
             this.parent.onerror(e);
@@ -166,11 +166,11 @@ SpiceConn.prototype =
 {
     send_hdr : function ()
     {
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log("📤 [SPICE Protocol] Sending Link Header + Link Message");
-        console.log("   Channel type: " + this.type);
-        console.log("   Connection ID: " + this.connection_id);
-        console.log("   Channel ID: " + this.chan_id);
+        logger.debug("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        logger.debug("📤 [SPICE Protocol] Sending Link Header + Link Message");
+        logger.debug("   Channel type: " + this.type);
+        logger.debug("   Connection ID: " + this.connection_id);
+        logger.debug("   Channel ID: " + this.chan_id);
 
         var hdr = new SpiceLinkHeader;
         var msg = new SpiceLinkMess;
@@ -199,7 +199,7 @@ SpiceConn.prototype =
         }
         else if (msg.channel_type == Constants.SPICE_CHANNEL_DISPLAY)
         {
-            console.log('📺 [SPICE Channel] Configuring Display channel capabilities...');
+            logger.debug('📺 [SPICE Channel] Configuring Display channel capabilities...');
 
             // Force H.264 codec only - server does not support other codecs
             // Always enable MULTI_CODEC for codec negotiation
@@ -207,26 +207,26 @@ SpiceConn.prototype =
                         (1 << Constants.SPICE_DISPLAY_CAP_STREAM_REPORT) |
                         (1 << Constants.SPICE_DISPLAY_CAP_MULTI_CODEC);
 
-            console.log('   Base capabilities: SIZED_STREAM | STREAM_REPORT | MULTI_CODEC');
+            logger.debug('   Base capabilities: SIZED_STREAM | STREAM_REPORT | MULTI_CODEC');
 
             // Only enable H.264 codec capability
             // Do NOT enable VP8 or MJPEG - server only supports H.264
             if (H264.h264_supported())
             {
                 caps |= (1 << Constants.SPICE_DISPLAY_CAP_CODEC_H264);
-                console.log('   ✅ H.264 codec: ENABLED (forced - server requirement)');
-                console.log('   ❌ VP8 codec: DISABLED (server does not support)');
-                console.log('   ❌ MJPEG codec: DISABLED (server does not support)');
+                logger.debug('   ✅ H.264 codec: ENABLED (forced - server requirement)');
+                logger.debug('   ❌ VP8 codec: DISABLED (server does not support)');
+                logger.debug('   ❌ MJPEG codec: DISABLED (server does not support)');
             }
             else
             {
-                console.error('   ❌ H.264 codec NOT supported by browser!');
-                console.error('   ❌ VP8 codec: DISABLED (server does not support)');
-                console.error('   ❌ MJPEG codec: DISABLED (server does not support)');
-                console.error('   ⚠️  WARNING: No video codecs available - connection may fail!');
+                logger.error('   ❌ H.264 codec NOT supported by browser!');
+                logger.error('   ❌ VP8 codec: DISABLED (server does not support)');
+                logger.error('   ❌ MJPEG codec: DISABLED (server does not support)');
+                logger.error('   ⚠️  WARNING: No video codecs available - connection may fail!');
             }
 
-            console.log('   Capability bits: 0x' + caps.toString(16));
+            logger.debug('   Capability bits: 0x' + caps.toString(16));
             msg.channel_caps.push(caps);
         }
 
@@ -236,9 +236,9 @@ SpiceConn.prototype =
         hdr.to_buffer(mb);
         msg.to_buffer(mb, hdr.buffer_size());
 
-        console.log("   Header size: " + hdr.buffer_size() + " bytes");
-        console.log("   Message size: " + msg.buffer_size() + " bytes");
-        console.log("   Total size: " + mb.byteLength + " bytes");
+        logger.debug("   Header size: " + hdr.buffer_size() + " bytes");
+        logger.debug("   Message size: " + msg.buffer_size() + " bytes");
+        logger.debug("   Total size: " + mb.byteLength + " bytes");
 
         // Hex dump first 64 bytes for debugging
         var view = new Uint8Array(mb);
@@ -247,10 +247,10 @@ SpiceConn.prototype =
             if (i > 0 && i % 16 === 0) hexDump += "\n   ";
             hexDump += view[i].toString(16).padStart(2, '0') + " ";
         }
-        console.log("   First 64 bytes (hex):\n   " + hexDump);
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        logger.debug("   First 64 bytes (hex):\n   " + hexDump);
+        logger.debug("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-        DEBUG > 1 && console.log("Sending header:");
+        DEBUG > 1 && logger.debug("Sending header:");
         DEBUG > 2 && hexdump_buffer(mb);
         this.ws.send(mb);
     },
@@ -264,7 +264,7 @@ SpiceConn.prototype =
         var mb = new ArrayBuffer(hdr.buffer_size());
 
         hdr.to_buffer(mb);
-        DEBUG > 1 && console.log("Sending ticket:");
+        DEBUG > 1 && logger.debug("Sending ticket:");
         DEBUG > 2 && hexdump_buffer(mb);
         this.ws.send(mb);
     },
@@ -274,14 +274,14 @@ SpiceConn.prototype =
         var mb = new ArrayBuffer(msg.buffer_size());
         msg.to_buffer(mb);
         this.messages_sent++;
-        DEBUG > 0 && console.log(">> hdr " + this.channel_type() + " type " + msg.type + " size " + mb.byteLength);
+        DEBUG > 0 && logger.debug(">> hdr " + this.channel_type() + " type " + msg.type + " size " + mb.byteLength);
         DEBUG > 2 && hexdump_buffer(mb);
         this.ws.send(mb);
     },
 
     process_inbound: function(mb, saved_header)
     {
-        DEBUG > 2 && console.log(this.type + ": processing message of size " + mb.byteLength + "; state is " + this.state);
+        DEBUG > 2 && logger.debug(this.type + ": processing message of size " + mb.byteLength + "; state is " + this.state);
         if (this.state == "ready")
         {
             if (saved_header == undefined)
@@ -319,10 +319,10 @@ SpiceConn.prototype =
 
         else if (this.state == "start")
         {
-            console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            console.log("📥 [SPICE Protocol] Processing Link Header Reply");
-            console.log("   Current state: start");
-            console.log("   Data size: " + mb.byteLength + " bytes");
+            logger.debug("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            logger.debug("📥 [SPICE Protocol] Processing Link Header Reply");
+            logger.debug("   Current state: start");
+            logger.debug("   Data size: " + mb.byteLength + " bytes");
 
             // Hex dump the data for debugging
             var view = new Uint8Array(mb);
@@ -331,20 +331,20 @@ SpiceConn.prototype =
                 if (i > 0 && i % 16 === 0) hexDump += "\n   ";
                 hexDump += view[i].toString(16).padStart(2, '0') + " ";
             }
-            console.log("   Data (hex):\n   " + hexDump);
+            logger.debug("   Data (hex):\n   " + hexDump);
 
             this.reply_hdr = new SpiceLinkHeader(mb);
 
-            console.log("   Parsed magic: 0x" + this.reply_hdr.magic.toString(16));
-            console.log("   Expected magic: 0x" + Constants.SPICE_MAGIC.toString(16));
-            console.log("   Reply size field: " + this.reply_hdr.size + " bytes");
+            logger.debug("   Parsed magic: 0x" + this.reply_hdr.magic.toString(16));
+            logger.debug("   Expected magic: 0x" + Constants.SPICE_MAGIC.toString(16));
+            logger.debug("   Reply size field: " + this.reply_hdr.size + " bytes");
 
             if (this.reply_hdr.magic != Constants.SPICE_MAGIC)
             {
-                console.error("❌ [SPICE Protocol] Magic mismatch!");
-                console.error("   Got: 0x" + this.reply_hdr.magic.toString(16));
-                console.error("   Expected: 0x" + Constants.SPICE_MAGIC.toString(16));
-                console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                logger.error("❌ [SPICE Protocol] Magic mismatch!");
+                logger.error("   Got: 0x" + this.reply_hdr.magic.toString(16));
+                logger.error("   Expected: 0x" + Constants.SPICE_MAGIC.toString(16));
+                logger.debug("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
                 this.state = "error";
                 var e = new Error('Error: magic mismatch: ' + this.reply_hdr.magic);
@@ -352,10 +352,10 @@ SpiceConn.prototype =
             }
             else
             {
-                console.log("✅ [SPICE Protocol] Magic verified!");
-                console.log("   Requesting " + this.reply_hdr.size + " more bytes for Link Reply");
-                console.log("   State: start → link");
-                console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                logger.debug("✅ [SPICE Protocol] Magic verified!");
+                logger.debug("   Requesting " + this.reply_hdr.size + " more bytes for Link Reply");
+                logger.debug("   State: start → link");
+                logger.debug("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
                 // FIXME - Determine major/minor version requirements
                 this.wire_reader.request(this.reply_hdr.size);
@@ -386,7 +386,7 @@ SpiceConn.prototype =
             this.auth_reply = new SpiceLinkAuthReply(mb);
             if (this.auth_reply.auth_code == Constants.SPICE_LINK_ERR_OK)
             {
-                DEBUG > 0 && console.log(this.type + ': Connected');
+                DEBUG > 0 && logger.debug(this.type + ': Connected');
 
                 if (this.type == Constants.SPICE_CHANNEL_DISPLAY)
                 {
@@ -394,7 +394,7 @@ SpiceConn.prototype =
                     var dinit = new SpiceMsgcDisplayInit();
                     var reply = new SpiceMiniData();
                     reply.build_msg(Constants.SPICE_MSGC_DISPLAY_INIT, dinit);
-                    DEBUG > 0 && console.log("Request display init");
+                    DEBUG > 0 && logger.debug("Request display init");
                     this.send_msg(reply);
                 }
                 this.state = "ready";
@@ -428,7 +428,7 @@ SpiceConn.prototype =
             var ack = new SpiceMsgSetAck(msg.data);
             // FIXME - what to do with generation?
             this.ack_window = ack.window;
-            DEBUG > 1 && console.log(this.type + ": set ack to " + ack.window);
+            DEBUG > 1 && logger.debug(this.type + ": set ack to " + ack.window);
             this.msgs_until_ack = this.ack_window;
             var ackack = new SpiceMsgcAckSync(ack);
             var reply = new SpiceMiniData();
@@ -439,7 +439,7 @@ SpiceConn.prototype =
 
         if (msg.type == Constants.SPICE_MSG_PING)
         {
-            DEBUG > 1 && console.log("ping!");
+            DEBUG > 1 && logger.debug("ping!");
             var pong = new SpiceMiniData;
             pong.type = Constants.SPICE_MSGC_PONG;
             if (msg.data)
@@ -472,7 +472,7 @@ SpiceConn.prototype =
     {
         var rc;
         var start = Date.now();
-        DEBUG > 0 && console.log("<< hdr " + this.channel_type() + " type " + msg.type + " size " + (msg.data && msg.data.byteLength));
+        DEBUG > 0 && logger.debug("<< hdr " + this.channel_type() + " type " + msg.type + " size " + (msg.data && msg.data.byteLength));
         rc = this.process_common_messages(msg);
         if (! rc)
         {
@@ -503,13 +503,13 @@ SpiceConn.prototype =
                 var ack = new SpiceMiniData();
                 ack.type = Constants.SPICE_MSGC_ACK;
                 this.send_msg(ack);
-                DEBUG > 1 && console.log(this.type + ": sent ack");
+                DEBUG > 1 && logger.debug(this.type + ": sent ack");
             }
         }
 
         var delta = Date.now() - start;
         if (DEBUG > 0 || delta > Webm.Constants.GAP_DETECTION_THRESHOLD)
-            console.log("delta " + this.channel_type() + ":" + msg.type + " " + delta);
+            logger.debug("delta " + this.channel_type() + ":" + msg.type + " " + delta);
         return rc;
     },
 
@@ -544,7 +544,7 @@ SpiceConn.prototype =
     log_info: function()
     {
         var msg = Array.prototype.join.call(arguments, " ");
-        console.log(msg);
+        logger.debug(msg);
         if (this.message_id)
         {
             var p = document.createElement("p");
@@ -557,7 +557,7 @@ SpiceConn.prototype =
     log_warn: function()
     {
         var msg = Array.prototype.join.call(arguments, " ");
-        console.log("WARNING: " + msg);
+        logger.debug("WARNING: " + msg);
         if (this.message_id)
         {
             var p = document.createElement("p");
@@ -570,7 +570,7 @@ SpiceConn.prototype =
     log_err: function()
     {
         var msg = Array.prototype.join.call(arguments, " ");
-        console.log("ERROR: " + msg);
+        logger.debug("ERROR: " + msg);
         if (this.message_id)
         {
             var p = document.createElement("p");

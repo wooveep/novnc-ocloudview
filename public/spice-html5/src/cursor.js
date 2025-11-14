@@ -43,7 +43,7 @@ SpiceCursorConn.prototype.process_channel_message = function(msg)
     if (msg.type == Constants.SPICE_MSG_CURSOR_INIT)
     {
         var cursor_init = new SpiceMsgCursorInit(msg.data);
-        DEBUG > 1 && console.log("SpiceMsgCursorInit");
+        DEBUG > 1 && logger.debug("SpiceMsgCursorInit");
         if (this.parent && this.parent.inputs &&
             this.parent.inputs.mouse_mode == Constants.SPICE_MOUSE_MODE_SERVER)
         {
@@ -61,7 +61,7 @@ SpiceCursorConn.prototype.process_channel_message = function(msg)
     if (msg.type == Constants.SPICE_MSG_CURSOR_SET)
     {
         var cursor_set = new SpiceMsgCursorSet(msg.data);
-        DEBUG > 1 && console.log("SpiceMsgCursorSet");
+        DEBUG > 1 && logger.debug("SpiceMsgCursorSet");
         if (cursor_set.flags & Constants.SPICE_CURSOR_FLAGS_NONE)
         {
             document.getElementById(this.parent.screen_id).style.cursor = "none";
@@ -90,7 +90,7 @@ SpiceCursorConn.prototype.process_channel_message = function(msg)
 
     if (msg.type == Constants.SPICE_MSG_CURSOR_HIDE)
     {
-        DEBUG > 1 && console.log("SpiceMsgCursorHide");
+        DEBUG > 1 && logger.debug("SpiceMsgCursorHide");
         document.getElementById(this.parent.screen_id).style.cursor = "none";
         return true;
     }
@@ -103,7 +103,7 @@ SpiceCursorConn.prototype.process_channel_message = function(msg)
 
     if (msg.type == Constants.SPICE_MSG_CURSOR_RESET)
     {
-        DEBUG > 1 && console.log("SpiceMsgCursorReset");
+        DEBUG > 1 && logger.debug("SpiceMsgCursorReset");
         document.getElementById(this.parent.screen_id).style.cursor = "auto";
         return true;
     }
@@ -116,7 +116,7 @@ SpiceCursorConn.prototype.process_channel_message = function(msg)
 
     if (msg.type == Constants.SPICE_MSG_CURSOR_INVAL_ALL)
     {
-        DEBUG > 1 && console.log("SpiceMsgCursorInvalAll");
+        DEBUG > 1 && logger.debug("SpiceMsgCursorInvalAll");
         // FIXME - There may be something useful to do here...
         return true;
     }

@@ -15,6 +15,7 @@ const rateLimit = require('express-rate-limit');
 const WebsockifyProxy = require('./lib/websockify-proxy');
 const { handleVNCConnection } = require('./lib/websocket-handler');
 const { handleSPICEConnection } = require('./lib/spice-handler');
+const logger = require('./lib/logger');
 require('dotenv').config();
 
 // ===== 配置 =====
@@ -118,7 +119,7 @@ class OcloudviewService {
     // 请求拦截器
     this.client.interceptors.request.use(
       (request) => {
-        console.log(`🔄 API Request: ${request.method?.toUpperCase()} ${request.url}`);
+        logger.debug(`🔄 API Request: ${request.method?.toUpperCase()} ${request.url}`);
         return request;
       },
       (error) => Promise.reject(error)
@@ -127,11 +128,11 @@ class OcloudviewService {
     // 响应拦截器
     this.client.interceptors.response.use(
       (response) => {
-        console.log(`✅ API Response: ${response.status} ${response.config.url}`);
+        logger.debug(`✅ API Response: ${response.status} ${response.config.url}`);
         return response;
       },
       (error) => {
-        console.error('❌ API Response Error:', error.response?.status, error.message);
+        logger.error('❌ API Response Error:', error.response?.status, error.message);
         return Promise.reject(this.handleApiError(error));
       }
     );
@@ -288,8 +289,8 @@ class OcloudviewService {
   // 获取SPICE连接信息
   async getSPICEConnectionInfo(token, vmId) {
     try {
-      console.log(`🔄 [SPICE API] Fetching connection info for VM: ${vmId}`);
-      console.log(`   Token preview: ${token ? token.substring(0, 20) + '...' : 'null'}`);
+      logger.debug(`🔄 [SPICE API] Fetching connection info for VM: ${vmId}`);
+      logger.debug(`   Token preview: ${token ? token.substring(0, 20) + '...' : 'null'}`);
 
       // SPICE 个性化配置（默认配置）
       const defaultPersonConfig = {
@@ -308,7 +309,7 @@ class OcloudviewService {
         uuid: vmId,
       };
 
-      console.log(`   Request data:`, {
+      logger.debug(`   Request data:`, {
         connectType: requestData.connectType,
         uuid: requestData.uuid,
         personConfig: defaultPersonConfig
@@ -324,7 +325,7 @@ class OcloudviewService {
         }
       );
 
-      console.log(`✅ [SPICE API] Response received:`, {
+      logger.debug(`✅ [SPICE API] Response received:`, {
         returnCode: response.data.returnCode,
         status: response.data.status,
         hasData: !!response.data.data
@@ -346,10 +347,10 @@ class OcloudviewService {
         domainIPs: data.data.list || [],
       };
     } catch (error) {
-      console.error(`❌ [SPICE API] Error:`, error.message);
+      logger.error(`❌ [SPICE API] Error:`, error.message);
       if (error.response) {
-        console.error(`   Response status: ${error.response.status}`);
-        console.error(`   Response data:`, error.response.data);
+        logger.error(`   Response status: ${error.response.status}`);
+        logger.error(`   Response data:`, error.response.data);
       }
       throw new Error('获取SPICE连接信息失败: ' + error.message);
     }
@@ -445,7 +446,7 @@ class OcloudviewService {
   // 强制重启虚拟机
   async forceReset(token, domainId) {
     try {
-      console.log(`🔄 [Force Reset] Resetting VM: ${domainId}`);
+      logger.debug(`🔄 [Force Reset] Resetting VM: ${domainId}`);
 
       const response = await this.client.post(`/ocloud/usermodule/forceReset/${domainId}`,
         {},
@@ -457,7 +458,7 @@ class OcloudviewService {
         }
       );
 
-      console.log(`✅ [Force Reset] Response received:`, {
+      logger.debug(`✅ [Force Reset] Response received:`, {
         returnCode: response.data.returnCode,
         msg: response.data.msg
       });
@@ -474,10 +475,10 @@ class OcloudviewService {
         data: data.data || {},
       };
     } catch (error) {
-      console.error(`❌ [Force Reset] Error:`, error.message);
+      logger.error(`❌ [Force Reset] Error:`, error.message);
       if (error.response) {
-        console.error(`   Response status: ${error.response.status}`);
-        console.error(`   Response data:`, error.response.data);
+        logger.error(`   Response status: ${error.response.status}`);
+        logger.error(`   Response data:`, error.response.data);
       }
       throw new Error('强制重启虚拟机失败: ' + error.message);
     }
@@ -607,7 +608,7 @@ app.post('/api/auth/login', [
       },
     });
   } catch (error) {
-    console.error('Login error:', error);
+    logger.error('Login error:', error);
     res.status(401).json({
       success: false,
       error: 'Authentication failed',
@@ -691,7 +692,7 @@ app.get('/api/vm/list', authMiddleware, async (req, res) => {
       total: filteredList.length,
     });
   } catch (error) {
-    console.error('Get VM list error:', error);
+    logger.error('Get VM list error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to get VM list',
@@ -779,7 +780,7 @@ app.post('/api/vm/:id/restart', authMiddleware, async (req, res) => {
 app.post('/api/vm/:id/force-reset', authMiddleware, async (req, res) => {
   try {
     const vmId = req.params.id;
-    console.log(`⚡ Force reset request for VM: ${vmId}`);
+    logger.debug(`⚡ Force reset request for VM: ${vmId}`);
 
     // 调用 OcloudView API 强制重启虚拟机
     const result = await ocloudviewService.forceReset(req.ocloudToken, vmId);
@@ -790,7 +791,7 @@ app.post('/api/vm/:id/force-reset', authMiddleware, async (req, res) => {
       data: { vmId: vmId }
     });
   } catch (error) {
-    console.error('Force reset VM error:', error);
+    logger.error('Force reset VM error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to force reset VM',
@@ -804,12 +805,12 @@ app.get('/api/vnc/connect/:vmId', authMiddleware, async (req, res) => {
   try {
     const vmId = req.params.vmId;
 
-    console.log(`📞 VNC connect request for VM: ${vmId}`);
+    logger.debug(`📞 VNC connect request for VM: ${vmId}`);
 
     // 获取完整的VNC连接信息
     const vncInfo = await ocloudviewService.getCompleteVNCInfo(req.ocloudToken, vmId);
 
-    console.log(`📊 VNC Info retrieved:`, {
+    logger.debug(`📊 VNC Info retrieved:`, {
       host: vncInfo.host,
       port: vncInfo.port,
       hasPassword: !!vncInfo.password,
@@ -830,7 +831,7 @@ app.get('/api/vnc/connect/:vmId', authMiddleware, async (req, res) => {
         password: vncInfo.password,
         timestamp: Date.now(),
       });
-      console.log(`✅ VNC info cached in session for VM ${vmId}`);
+      logger.debug(`✅ VNC info cached in session for VM ${vmId}`);
     }
 
     // 生成 WebSocket URL
@@ -847,7 +848,7 @@ app.get('/api/vnc/connect/:vmId', authMiddleware, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('❌ Get VNC connection error:', error);
+    logger.error('❌ Get VNC connection error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to get VNC connection',
@@ -861,12 +862,12 @@ app.get('/api/spice/connect/:vmId', authMiddleware, async (req, res) => {
   try {
     const vmId = req.params.vmId;
 
-    console.log(`📞 SPICE connect request for VM: ${vmId}`);
+    logger.debug(`📞 SPICE connect request for VM: ${vmId}`);
 
     // 获取 SPICE 连接信息
     const spiceInfo = await ocloudviewService.getSPICEConnectionInfo(req.ocloudToken, vmId);
 
-    console.log(`📊 SPICE Info retrieved:`, {
+    logger.debug(`📊 SPICE Info retrieved:`, {
       host: spiceInfo.hostIp,
       port: spiceInfo.spicePort,
       hasPassword: !!spiceInfo.spicePassword,
@@ -887,7 +888,7 @@ app.get('/api/spice/connect/:vmId', authMiddleware, async (req, res) => {
         password: spiceInfo.spicePassword,
         timestamp: Date.now(),
       });
-      console.log(`✅ SPICE info cached in session for VM ${vmId}`);
+      logger.debug(`✅ SPICE info cached in session for VM ${vmId}`);
     }
 
     // 生成 WebSocket URL
@@ -908,7 +909,7 @@ app.get('/api/spice/connect/:vmId', authMiddleware, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('❌ Get SPICE connection error:', error);
+    logger.error('❌ Get SPICE connection error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to get SPICE connection',
@@ -983,12 +984,12 @@ app.use((req, res, next) => {
 
 // 全局错误处理
 app.use((err, req, res, next) => {
-  console.error('Error:', err);
+  logger.error('Error:', err);
   const status = err.status || err.statusCode || 500;
-  const message = config.server.env === 'production' 
+  const message = config.server.env === 'production'
     ? 'Internal Server Error'
     : err.message;
-  
+
   res.status(status).json({
     error: 'Server Error',
     message,
@@ -1008,22 +1009,22 @@ const wss = new WebSocket.Server({
   // 移除 path 限制，允许 /vnc/* 格式的路径
   // Handle WebSocket subprotocols (SPICE client uses 'binary' subprotocol)
   handleProtocols: (protocols, request) => {
-    console.log(`🔌 [WebSocket] Client requested protocols: ${Array.from(protocols).join(', ')}`);
+    logger.debug(`🔌 [WebSocket] Client requested protocols: ${Array.from(protocols).join(', ')}`);
 
     // Accept 'binary' subprotocol for SPICE connections
     if (protocols.has('binary')) {
-      console.log(`   ✅ Accepting 'binary' subprotocol`);
+      logger.debug(`   ✅ Accepting 'binary' subprotocol`);
       return 'binary';
     }
 
     // For VNC or other connections, accept the first protocol or empty string
     const firstProtocol = protocols.values().next().value;
     if (firstProtocol) {
-      console.log(`   ✅ Accepting '${firstProtocol}' subprotocol`);
+      logger.debug(`   ✅ Accepting '${firstProtocol}' subprotocol`);
       return firstProtocol;
     }
 
-    console.log(`   ℹ️  No subprotocol requested, accepting connection anyway`);
+    logger.debug(`   ℹ️  No subprotocol requested, accepting connection anyway`);
     return false; // No subprotocol
   }
 });
@@ -1040,11 +1041,11 @@ const wsProxy = new WebsockifyProxy({
   retryBackoffMultiplier: config.vnc.retryBackoffMultiplier
 });
 
-console.log('🔌 WebsockifyProxy initialized (based on websockify-js architecture)');
+logger.info('🔌 WebsockifyProxy initialized (based on websockify-js architecture)');
 
 // WebSocket连接处理
 wss.on('connection', (ws, req) => {
-  console.log(`📱 New WebSocket connection from ${req.socket.remoteAddress}`);
+  logger.debug(`📱 New WebSocket connection from ${req.socket.remoteAddress}`);
 
   const urlPath = req.url.split('?')[0];
 
@@ -1066,36 +1067,36 @@ wss.on('connection', (ws, req) => {
       sessionStore
     });
   } else {
-    console.error(`❌ Unknown WebSocket path: ${urlPath}`);
-    console.error(`   Expected: /vnc/{vmId} or /spice/{vmId}`);
+    logger.error(`❌ Unknown WebSocket path: ${urlPath}`);
+    logger.error(`   Expected: /vnc/{vmId} or /spice/{vmId}`);
     ws.close(1002, 'Invalid path');
   }
 });
 
 wss.on('error', (error) => {
-  console.error('❌ WebSocket Server Error:', error);
+  logger.error('❌ WebSocket Server Error:', error);
 });
 
 // 启动服务器
 const PORT = config.server.port;
 
 server.listen(PORT, () => {
-  console.log('🚀 noVNC-ocloudview Server Started');
-  console.log(`📡 HTTP Server: http://localhost:${PORT}`);
-  console.log(`🔌 WebSocket Server: ws://localhost:${PORT}${config.websocket.path}`);
-  console.log(`🌍 Environment: ${config.server.env}`);
-  console.log(`🔗 OcloudView API: ${config.ocloudview.apiUrl}`);
-  console.log('');
-  console.log('📚 API Endpoints:');
-  console.log(`   Health Check: http://localhost:${PORT}/health`);
-  console.log(`   API Root: http://localhost:${PORT}/api`);
-  console.log('');
-  console.log('🎯 Ready to accept connections!');
+  logger.info('🚀 noVNC-ocloudview Server Started');
+  logger.info(`📡 HTTP Server: http://localhost:${PORT}`);
+  logger.info(`🔌 WebSocket Server: ws://localhost:${PORT}${config.websocket.path}`);
+  logger.info(`🌍 Environment: ${config.server.env}`);
+  logger.info(`🔗 OcloudView API: ${config.ocloudview.apiUrl}`);
+  logger.info('');
+  logger.info('📚 API Endpoints:');
+  logger.info(`   Health Check: http://localhost:${PORT}/health`);
+  logger.info(`   API Root: http://localhost:${PORT}/api`);
+  logger.info('');
+  logger.info('🎯 Ready to accept connections!');
 });
 
 // 优雅关闭处理
 const gracefulShutdown = async (signal) => {
-  console.log(`\n📴 ${signal} received, starting graceful shutdown...`);
+  logger.info(`\n📴 ${signal} received, starting graceful shutdown...`);
 
   // 关闭 WebSocket 代理和所有连接
   await wsProxy.shutdown();
@@ -1104,16 +1105,16 @@ const gracefulShutdown = async (signal) => {
   sessionStore.clear();
 
   wss.close(() => {
-    console.log('✅ WebSocket server closed');
+    logger.info('✅ WebSocket server closed');
   });
 
   server.close(() => {
-    console.log('✅ HTTP server closed');
+    logger.info('✅ HTTP server closed');
     process.exit(0);
   });
 
   setTimeout(() => {
-    console.error('⚠️ Forced shutdown after timeout');
+    logger.error('⚠️ Forced shutdown after timeout');
     process.exit(1);
   }, 10000);
 };
@@ -1122,12 +1123,12 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 process.on('uncaughtException', (error) => {
-  console.error('💥 Uncaught Exception:', error);
+  logger.error('💥 Uncaught Exception:', error);
   gracefulShutdown('UNCAUGHT_EXCEPTION');
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+  logger.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
   gracefulShutdown('UNHANDLED_REJECTION');
 });
 
