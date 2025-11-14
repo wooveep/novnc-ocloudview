@@ -57,6 +57,9 @@ function resize_helper(sc)
         }
     }
 
+    // Store original values for logging
+    var original_w = w;
+    var original_h = h;
 
     /* Xorg requires height be a multiple of 8; round down */
     if (h % 8 > 0)
@@ -71,11 +74,15 @@ function resize_helper(sc)
     // resolutions that fit within the current window
     if (sc.is_vgpu)
     {
-        console.log(`🎮 [vGPU] Adjusting resolution for vGPU VM: ${w}x${h}`);
-
-        // For vGPU, always request resolution <= window size
-        // This ensures the VM resolution matches or is smaller than the display area
-        // The VM will scale its output to fit the available space
+        console.log(`🎮 [vGPU] Resolution adjustment for vGPU VM (${sc.gpu_type || 'unknown'})`);
+        console.log(`  - Window size: ${original_w}x${original_h} (original)`);
+        console.log(`  - Adjusted size: ${w}x${h} (aligned to 8-pixel boundary)`);
+        console.log(`  - Requesting VM resolution: ${w}x${h}`);
+        console.log(`  - This ensures VM resolution ≤ window size`);
+    }
+    else
+    {
+        console.log(`🖥️  [Resize] Requesting resolution: ${w}x${h} (window: ${original_w}x${original_h})`);
     }
 
     sc.resize_window(0, w, h, 32, 0, 0);
