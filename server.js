@@ -44,6 +44,10 @@ const config = {
     // SPICE 协议需要建立多达 17+ 个通道 (display, inputs, cursor, playback, record, usbredir, webdav 等)
     // 在高延迟场景下，每个通道的建立都需要额外时间
     connectionTimeout: parseInt(process.env.CONNECTION_TIMEOUT) || 30000, // 增加到 30 秒，支持高延迟场景
+    // 连接重试配置 - 提高不稳定网络环境下的连接成功率
+    maxRetries: parseInt(process.env.MAX_RETRIES) || 3, // 最大重试次数
+    retryDelay: parseInt(process.env.RETRY_DELAY) || 1000, // 初始重试延迟（毫秒）
+    retryBackoffMultiplier: parseFloat(process.env.RETRY_BACKOFF_MULTIPLIER) || 2, // 重试延迟倍数
   },
   cors: {
     origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000'],
@@ -1029,7 +1033,11 @@ const wsProxy = new WebsockifyProxy({
   wss,
   heartbeatTimeout: config.websocket.heartbeat.interval,
   connectionTimeout: config.vnc.connectionTimeout,
-  maxConnections: 100
+  maxConnections: 100,
+  // 连接重试配置
+  maxRetries: config.vnc.maxRetries,
+  retryDelay: config.vnc.retryDelay,
+  retryBackoffMultiplier: config.vnc.retryBackoffMultiplier
 });
 
 console.log('🔌 WebsockifyProxy initialized (based on websockify-js architecture)');
