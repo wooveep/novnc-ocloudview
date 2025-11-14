@@ -212,7 +212,6 @@ class OcloudviewService {
           cpu: vm.cpu,
           memory: Math.round(vm.memory / 1024), // 转换为GB
           os: vm.osEdition || vm.osType,
-          ip: vm.originalIp || '-',
           type: 'domain',
           hostId: vm.hostId,
           isConnected: vm.isConnected,
@@ -230,7 +229,6 @@ class OcloudviewService {
           cpu: vm.cpu || '-',
           memory: vm.memory ? Math.round(vm.memory / 1024) : '-',
           os: vm.osEdition || '-',
-          ip: vm.ip || '-',
           type: 'desk_pool',
           poolId: vm.poolId,
         });
