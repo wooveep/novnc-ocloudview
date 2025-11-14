@@ -40,7 +40,10 @@ const config = {
   },
   vnc: {
     defaultPort: 5900,
-    connectionTimeout: 10000,
+    // 连接超时时间 - 对于高延迟网络场景，需要足够的时间来建立所有 SPICE 通道
+    // SPICE 协议需要建立多达 17+ 个通道 (display, inputs, cursor, playback, record, usbredir, webdav 等)
+    // 在高延迟场景下，每个通道的建立都需要额外时间
+    connectionTimeout: parseInt(process.env.CONNECTION_TIMEOUT) || 30000, // 增加到 30 秒，支持高延迟场景
   },
   cors: {
     origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000'],
