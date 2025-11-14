@@ -30,7 +30,7 @@ import { SpiceMsgPortInit } from './spicemsg.js';
 **--------------------------------------------------------------------------*/
 function SpicePortConn()
 {
-    DEBUG > 0 && console.log('SPICE port: created SPICE port channel. Args:', arguments);
+    DEBUG > 0 && logger.debug('SPICE port: created SPICE port channel. Args:', arguments);
     SpiceConn.apply(this, arguments);
     this.port_name = null;
 }
@@ -46,15 +46,15 @@ SpicePortConn.prototype.process_channel_message = function(msg)
             var m = new SpiceMsgPortInit(msg.data);
             this.portName = arraybuffer_to_str(new Uint8Array(m.name));
             this.portOpened = m.opened
-            DEBUG > 0 && console.log('SPICE port: Port', this.portName, 'initialized');
+            DEBUG > 0 && logger.debug('SPICE port: Port', this.portName, 'initialized');
             return true;
         }
 
-        DEBUG > 0 && console.log('SPICE port: Port', this.port_name, 'is already initialized.');
+        DEBUG > 0 && logger.debug('SPICE port: Port', this.port_name, 'is already initialized.');
     }
     else if (msg.type == Constants.SPICE_MSG_PORT_EVENT)
     {
-        DEBUG > 0 && console.log('SPICE port: Port event received for', this.portName, msg);
+        DEBUG > 0 && logger.debug('SPICE port: Port event received for', this.portName, msg);
         var event = new CustomEvent('spice-port-event', {
             detail: {
                 channel: this,
@@ -69,7 +69,7 @@ SpicePortConn.prototype.process_channel_message = function(msg)
     }
     else if (msg.type == Constants.SPICE_MSG_SPICEVMC_DATA)
     {
-        DEBUG > 0 && console.log('SPICE port: Data received in port', this.portName, msg);
+        DEBUG > 0 && logger.debug('SPICE port: Data received in port', this.portName, msg);
         var event = new CustomEvent('spice-port-data', {
             detail: {
                 channel: this,
@@ -83,7 +83,7 @@ SpicePortConn.prototype.process_channel_message = function(msg)
     }
     else
     {
-        DEBUG > 0 && console.log('SPICE port: SPICE message type not recognized:', msg)
+        DEBUG > 0 && logger.debug('SPICE port: SPICE message type not recognized:', msg)
     }
 
     return false;

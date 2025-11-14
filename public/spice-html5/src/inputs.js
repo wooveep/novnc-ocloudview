@@ -55,7 +55,7 @@ SpiceInputsConn.prototype.process_channel_message = function(msg)
     {
         var inputs_init = new Messages.SpiceMsgInputsInit(msg.data);
         this.keyboard_modifiers = inputs_init.keyboard_modifiers;
-        DEBUG > 1 && console.log("MsgInputsInit - modifier " + this.keyboard_modifiers);
+        DEBUG > 1 && logger.debug("MsgInputsInit - modifier " + this.keyboard_modifiers);
         // FIXME - We don't do anything with the keyboard modifiers...
         return true;
     }
@@ -63,13 +63,13 @@ SpiceInputsConn.prototype.process_channel_message = function(msg)
     {
         var key = new Messages.SpiceMsgInputsKeyModifiers(msg.data);
         this.keyboard_modifiers = key.keyboard_modifiers;
-        DEBUG > 1 && console.log("MsgInputsKeyModifiers - modifier " + this.keyboard_modifiers);
+        DEBUG > 1 && logger.debug("MsgInputsKeyModifiers - modifier " + this.keyboard_modifiers);
         // FIXME - We don't do anything with the keyboard modifiers...
         return true;
     }
     if (msg.type == Constants.SPICE_MSG_INPUTS_MOUSE_MOTION_ACK)
     {
-        DEBUG > 1 && console.log("mouse motion ack");
+        DEBUG > 1 && logger.debug("mouse motion ack");
         this.waiting_for_ack -= Constants.SPICE_INPUT_MOTION_ACK_BUNCH;
         return true;
     }
@@ -260,25 +260,25 @@ function check_and_update_modifiers(e, code, sc)
     {
         if (Shift_state != e.shiftKey)
         {
-            console.log("Shift state out of sync");
+            logger.debug("Shift state out of sync");
             update_modifier(e.shiftKey, KeyNames.KEY_ShiftL, sc);
             Shift_state = e.shiftKey;
         }
         if (Alt_state != e.altKey)
         {
-            console.log("Alt state out of sync");
+            logger.debug("Alt state out of sync");
             update_modifier(e.altKey, KeyNames.KEY_Alt, sc);
             Alt_state = e.altKey;
         }
         if (Ctrl_state != e.ctrlKey)
         {
-            console.log("Ctrl state out of sync");
+            logger.debug("Ctrl state out of sync");
             update_modifier(e.ctrlKey, KeyNames.KEY_LCtrl, sc);
             Ctrl_state = e.ctrlKey;
         }
         if (Meta_state != e.metaKey)
         {
-            console.log("Meta state out of sync");
+            logger.debug("Meta state out of sync");
             update_modifier(e.metaKey, 0xE0B5, sc);
             Meta_state = e.metaKey;
         }

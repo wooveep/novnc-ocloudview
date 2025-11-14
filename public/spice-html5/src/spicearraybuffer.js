@@ -54,5 +54,5 @@ function SpiceArrayBufferSlice(start, end)
 if (! ArrayBuffer.prototype.slice)
 {
     ArrayBuffer.prototype.slice = SpiceArrayBufferSlice;
-    console.log("WARNING:  ArrayBuffer.slice() is missing; we are extending ArrayBuffer to compensate");
+    logger.warn("WARNING:  ArrayBuffer.slice() is missing; we are extending ArrayBuffer to compensate");
 }

@@ -122,12 +122,12 @@ function is_h264_data(data)
  */
 function h264_log(message, data)
 {
-    if (window.console && console.log)
+    if (window.logger && logger.debug)
     {
         if (data !== undefined)
-            console.log("[H.264] " + message, data);
+            logger.debug("[H.264] " + message, data);
         else
-            console.log("[H.264] " + message);
+            logger.debug("[H.264] " + message);
     }
 }
 

@@ -141,21 +141,21 @@ SpiceMainConn.prototype.process_channel_message = function(msg)
     if (msg.type == Constants.SPICE_MSG_MAIN_MULTI_MEDIA_TIME)
     {
         // Log message details for debugging non-standard server implementations
-        console.log("⏱️  [DEBUG] SPICE_MSG_MAIN_MULTI_MEDIA_TIME received");
-        console.log("  - Message type:", msg.type);
-        console.log("  - Message data length:", msg.data ? msg.data.byteLength : 0);
+        logger.debug("⏱️  [DEBUG] SPICE_MSG_MAIN_MULTI_MEDIA_TIME received");
+        logger.debug("  - Message type:", msg.type);
+        logger.debug("  - Message data length:", msg.data ? msg.data.byteLength : 0);
 
         if (msg.data && msg.data.byteLength > 0) {
-            console.log("  - Raw data (hex):", Array.from(new Uint8Array(msg.data)).map(b => b.toString(16).padStart(2, '0')).join(' '));
+            logger.debug("  - Raw data (hex):", Array.from(new Uint8Array(msg.data)).map(b => b.toString(16).padStart(2, '0')).join(' '));
 
             // Try to parse the message
             try {
                 var mm_time_msg = new Messages.SpiceMsgMainMultiMediaTime(msg.data);
-                console.log("  - Parsed multi_media_time:", mm_time_msg.multi_media_time);
-                console.log("  - Current mm_time:", this.mm_time);
-                console.log("  - Time delta:", mm_time_msg.multi_media_time - this.mm_time);
+                logger.debug("  - Parsed multi_media_time:", mm_time_msg.multi_media_time);
+                logger.debug("  - Current mm_time:", this.mm_time);
+                logger.debug("  - Time delta:", mm_time_msg.multi_media_time - this.mm_time);
             } catch (e) {
-                console.log("  - Error parsing message:", e.message);
+                logger.debug("  - Error parsing message:", e.message);
             }
         }
 
@@ -168,7 +168,7 @@ SpiceMainConn.prototype.process_channel_message = function(msg)
     {
         var i;
         var chans;
-        DEBUG > 0 && console.log("channels");
+        DEBUG > 0 && logger.debug("channels");
         chans = new Messages.SpiceMsgChannels(msg.data);
         for (i = 0; i < chans.channels.length; i++)
         {
@@ -257,17 +257,17 @@ SpiceMainConn.prototype.process_channel_message = function(msg)
     if (msg.type == Constants.SPICE_MSG_MAIN_AGENT_DATA)
     {
         // Log message details for debugging
-        console.log("📨 [DEBUG] SPICE_MSG_MAIN_AGENT_DATA received");
-        console.log("  - Message type:", msg.type);
-        console.log("  - Message data length:", msg.data ? msg.data.byteLength : 0);
+        logger.debug("📨 [DEBUG] SPICE_MSG_MAIN_AGENT_DATA received");
+        logger.debug("  - Message type:", msg.type);
+        logger.debug("  - Message data length:", msg.data ? msg.data.byteLength : 0);
 
         var agent_data = new Messages.SpiceMsgMainAgentData(msg.data);
-        console.log("  - Agent data type:", agent_data.type);
-        console.log("  - Agent data size:", agent_data.size);
+        logger.debug("  - Agent data type:", agent_data.type);
+        logger.debug("  - Agent data size:", agent_data.size);
 
         if (agent_data.type == Constants.VD_AGENT_ANNOUNCE_CAPABILITIES)
         {
-            console.log("  - Processing: VD_AGENT_ANNOUNCE_CAPABILITIES");
+            logger.debug("  - Processing: VD_AGENT_ANNOUNCE_CAPABILITIES");
             var agent_caps = new Messages.VDAgentAnnounceCapabilities(agent_data.data);
             if (agent_caps.request)
                 this.announce_agent_capabilities(0);
@@ -275,15 +275,15 @@ SpiceMainConn.prototype.process_channel_message = function(msg)
         }
         else if (agent_data.type == Constants.VD_AGENT_FILE_XFER_STATUS)
         {
-            console.log("  - Processing: VD_AGENT_FILE_XFER_STATUS");
+            logger.debug("  - Processing: VD_AGENT_FILE_XFER_STATUS");
             this.handle_file_xfer_status(new Messages.VDAgentFileXferStatusMessage(agent_data.data));
             return true;
         }
         else
         {
             // Log unhandled agent data types for debugging
-            console.log("  - ⚠️  Unhandled agent data type:", agent_data.type);
-            console.log("  - Raw agent data (hex):", agent_data.data ?
+            logger.debug("  - ⚠️  Unhandled agent data type:", agent_data.type);
+            logger.debug("  - Raw agent data (hex):", agent_data.data ?
                 Array.from(new Uint8Array(agent_data.data)).slice(0, 32).map(b => b.toString(16).padStart(2, '0')).join(' ') : 'null');
 
             // Return true to acknowledge the message (even if not fully processed)

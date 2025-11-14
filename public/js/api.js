@@ -139,7 +139,7 @@ const API = {
     if (!response.ok) {
       // If the response body indicates success despite HTTP error code, return it
       if (result.success === true) {
-        console.warn(`⚠️ API returned HTTP ${response.status} but operation succeeded`);
+        logger.warn(`⚠️ API returned HTTP ${response.status} but operation succeeded`);
         return result;
       }
       throw new Error(result.message || `请求失败: ${response.status}`);
@@ -254,7 +254,7 @@ async function checkServerStatus() {
 document.addEventListener('DOMContentLoaded', () => {
   // 设置AJAX全局错误处理
   window.addEventListener('unhandledrejection', event => {
-    console.error('Unhandled promise rejection:', event.reason);
+    logger.error('Unhandled promise rejection:', event.reason);
     Utils.showError('操作失败: ' + (event.reason?.message || '未知错误'));
   });
 
@@ -264,7 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         await API.auth.refresh();
       } catch (error) {
-        console.error('Token refresh failed:', error);
+        logger.error('Token refresh failed:', error);
       }
     }, 10 * 60 * 1000);
   }

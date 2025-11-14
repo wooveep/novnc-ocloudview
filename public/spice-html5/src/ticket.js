@@ -73,7 +73,7 @@ function RSA_padding_add_PKCS1_OAEP(tolen, from, param)
 
     if (padlen < SHA_DIGEST_LENGTH)
     {
-        console.log("Error - data too large for key size.");
+        logger.error("Error - data too large for key size.");
         return null;
     }
 
@@ -120,7 +120,7 @@ function asn_get_length(u8, at)
     {
         if (len != 0x81)
         {
-            console.log("Error:  we lazily don't support keys bigger than 255 bytes.  It'd be easy to fix.");
+            logger.error("Error:  we lazily don't support keys bigger than 255 bytes.  It'd be easy to fix.");
             return null;
         }
         len = u8[at++];
@@ -135,7 +135,7 @@ function find_sequence(u8, at)
     at = at || 0;
     if (u8[at++] != 0x30)
     {
-        console.log("Error:  public key should start with a sequence flag.");
+        logger.error("Error:  public key should start with a sequence flag.");
         return null;
     }
 
@@ -171,7 +171,7 @@ function create_rsa_from_mb(mb, at)
     at = seq[0] + seq[1];
     if (u8[at++] != 0x3)
     {
-        console.log("Error: expecting bit string next.");
+        logger.error("Error: expecting bit string next.");
         return null;
     }
 
@@ -183,7 +183,7 @@ function create_rsa_from_mb(mb, at)
     at = lenblock[0];
     if (u8[at] != 0 && u8[at + 1] != 0x30)
     {
-        console.log("Error: unexpected values in bit string.");
+        logger.error("Error: unexpected values in bit string.");
         return null;
     }
 
@@ -195,7 +195,7 @@ function create_rsa_from_mb(mb, at)
     at = seq[0];
     if (u8[at++] != 0x02)
     {
-        console.log("Error: expecting integer n next.");
+        logger.error("Error: expecting integer n next.");
         return null;
     }
     lenblock = asn_get_length(u8, at);
@@ -214,7 +214,7 @@ function create_rsa_from_mb(mb, at)
 
     if (u8[at++] != 0x02)
     {
-        console.log("Error: expecting integer e next.");
+        logger.error("Error: expecting integer e next.");
         return null;
     }
     lenblock = asn_get_length(u8, at);

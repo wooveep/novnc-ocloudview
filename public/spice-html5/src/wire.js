@@ -132,18 +132,18 @@ SpiceWireReader.prototype =
 
 function wire_blob_catcher(e)
 {
-    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    console.log("📨 [WebSocket] Message received from server");
-    console.log("   Connection ID: " + this.wire_reader.sc.connection_id);
-    console.log("   Channel type: " + this.wire_reader.sc.type);
-    console.log("   State: " + this.wire_reader.sc.state);
-    console.log("   Data size: " + e.data.byteLength + " bytes");
-    console.log("   Needed bytes: " + this.wire_reader.needed);
-    console.log("   Buffered bytes: " + this.wire_reader.size);
-    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    logger.debug("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    logger.debug("📨 [WebSocket] Message received from server");
+    logger.debug("   Connection ID: " + this.wire_reader.sc.connection_id);
+    logger.debug("   Channel type: " + this.wire_reader.sc.type);
+    logger.debug("   State: " + this.wire_reader.sc.state);
+    logger.debug("   Data size: " + e.data.byteLength + " bytes");
+    logger.debug("   Needed bytes: " + this.wire_reader.needed);
+    logger.debug("   Buffered bytes: " + this.wire_reader.size);
+    logger.debug("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-    DEBUG > 1 && console.log(">> WebSockets.onmessage");
-    DEBUG > 1 && console.log("id " + this.wire_reader.sc.connection_id +"; type " + this.wire_reader.sc.type);
+    DEBUG > 1 && logger.debug(">> WebSockets.onmessage");
+    DEBUG > 1 && logger.debug("id " + this.wire_reader.sc.connection_id +"; type " + this.wire_reader.sc.type);
     SpiceWireReader.prototype.inbound.call(this.wire_reader, e.data);
 }
 
