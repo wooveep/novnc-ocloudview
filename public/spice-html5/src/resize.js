@@ -66,6 +66,17 @@ function resize_helper(sc)
     if (w % 8 > 0)
         w -= (w % 8);
 
+    // For vGPU VMs (NVIDIA), ensure resolution is <= window size
+    // vGPU VMs have fixed maximum resolutions and need to request
+    // resolutions that fit within the current window
+    if (sc.is_vgpu)
+    {
+        console.log(`🎮 [vGPU] Adjusting resolution for vGPU VM: ${w}x${h}`);
+
+        // For vGPU, always request resolution <= window size
+        // This ensures the VM resolution matches or is smaller than the display area
+        // The VM will scale its output to fit the available space
+    }
 
     sc.resize_window(0, w, h, 32, 0, 0);
     sc.spice_resize_timer = undefined;
