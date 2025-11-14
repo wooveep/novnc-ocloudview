@@ -161,14 +161,25 @@ SpiceConn.prototype =
         }
         else if (msg.channel_type == Constants.SPICE_CHANNEL_DISPLAY)
         {
+            // Force H.264 codec only - server does not support other codecs
+            // Always enable MULTI_CODEC for codec negotiation
             var caps =  (1 << Constants.SPICE_DISPLAY_CAP_SIZED_STREAM) |
                         (1 << Constants.SPICE_DISPLAY_CAP_STREAM_REPORT) |
-                        (1 << Constants.SPICE_DISPLAY_CAP_MULTI_CODEC) |
-                        (1 << Constants.SPICE_DISPLAY_CAP_CODEC_MJPEG);
-            if ('MediaSource' in window && MediaSource.isTypeSupported(Webm.Constants.SPICE_VP8_CODEC))
-                caps |= (1 << Constants.SPICE_DISPLAY_CAP_CODEC_VP8);
+                        (1 << Constants.SPICE_DISPLAY_CAP_MULTI_CODEC);
+
+            // Only enable H.264 codec capability
+            // Do NOT enable VP8 or MJPEG - server only supports H.264
             if (H264.h264_supported())
+            {
                 caps |= (1 << Constants.SPICE_DISPLAY_CAP_CODEC_H264);
+                console.log('✅ [SPICE] H.264 codec enabled (forced - server requirement)');
+            }
+            else
+            {
+                console.error('❌ [SPICE] H.264 codec NOT supported by browser - connection may fail!');
+                console.error('   Server requires H.264 but browser does not support it.');
+            }
+
             msg.channel_caps.push(caps);
         }
 
