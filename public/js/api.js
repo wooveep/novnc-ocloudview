@@ -92,11 +92,15 @@ const Utils = {
   getStatusText(status) {
     const statusMap = {
       'running': '运行中',
-      'stopped': '已停止',
+      'stopped': '已关机',
       'suspended': '已挂起',
+      'hibernated': '已休眠',
+      'operating': '操作中',
+      'upgrading': '升级中',
       'paused': '已暂停',
       'shutoff': '已关机',
       'crashed': '已崩溃',
+      'desk_pool': '共享池',
       'unknown': '未知',
     };
     return statusMap[status] || status;
@@ -218,6 +222,13 @@ const API = {
 
     async getToken(vmId) {
       return API.request(`/vnc/token/${vmId}`);
+    },
+  },
+
+  // 共享桌面池相关
+  deskPool: {
+    async connectSpice(deskId) {
+      return API.request(`/desk-pool/spice/connect/${deskId}`);
     },
   },
 };
