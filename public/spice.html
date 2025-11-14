@@ -521,19 +521,11 @@
                         console.log('🖥️  [SPICE] Setting up display and input handlers');
                         window.addEventListener('resize', SpiceHtml5.handle_resize);
 
-                        // For vGPU VMs, trigger resolution adjustment more aggressively
-                        if (sc.is_vgpu) {
-                            console.log('🎮 [vGPU] Initial resolution adjustment for vGPU VM');
-                            SpiceHtml5.resize_helper(sc);
-
-                            // Trigger again after display is fully ready
-                            setTimeout(() => {
-                                console.log('🎮 [vGPU] Secondary resolution adjustment for vGPU VM');
-                                SpiceHtml5.resize_helper(sc);
-                            }, 2000);
-                        } else {
-                            SpiceHtml5.resize_helper(sc);
-                        }
+                        // DO NOT call resize_helper here - it requires agent to be connected!
+                        // resize_window uses send_agent_message which checks agent_connected
+                        // If agent is not connected, resize calls will be silently ignored
+                        // Resolution adjustment will be triggered in handleAgentConnected() callback
+                        console.log('⏳ [SPICE] Waiting for agent connection before adjusting resolution...');
 
                         // Ensure canvas has focus for keyboard input
                         var canvas = sc.display.surfaces[sc.display.primary_surface].canvas;
@@ -569,24 +561,47 @@
 
             // Check if agent is connected
             if (sc && sc.main_init && sc.main_init.agent_connected) {
-                console.log('✅ [SPICE] Agent is connected');
+                console.log('✅ [SPICE] Agent is ALREADY connected at connection time');
 
                 // For vGPU VMs with agent connected, trigger resolution adjustment
                 if (sc.is_vgpu) {
                     console.log('🎮 [vGPU] Connection successful with agent - will trigger resolution adjustment');
                 }
             } else {
-                console.log('⚠️  [SPICE] Agent not connected - some features may be limited');
-                console.log('   - Auto-resize: Not available');
-                console.log('   - Clipboard sharing: Not available');
-                console.log('   - File transfer: Not available');
-                console.log('   - Keyboard/Mouse input: Should still work');
+                console.log('⏳ [SPICE] Agent not yet connected - waiting for agent...');
+                console.log('   Waiting for SPICE Guest Tools to connect...');
 
-                // For vGPU VMs without agent, warn that resolution adjustment won't work
-                if (sc && sc.is_vgpu) {
-                    console.warn('⚠️  [vGPU] SPICE Agent not connected - resolution adjustment will NOT work');
-                    console.warn('   Please install SPICE Guest Tools in the VM for vGPU resolution adjustment');
-                }
+                // Set a timeout to check if agent connects within 10 seconds
+                setTimeout(() => {
+                    if (!sc || !sc.agent_connected) {
+                        console.error('❌ [SPICE] Agent did NOT connect within 10 seconds!');
+                        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                        console.error('⚠️  SPICE Agent is NOT connected - limited functionality!');
+                        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                        console.error('');
+                        console.error('Missing features:');
+                        console.error('  ❌ Auto-resize / Resolution adjustment');
+                        console.error('  ❌ Clipboard sharing');
+                        console.error('  ❌ File drag & drop transfer');
+                        console.error('');
+                        console.error('✅ Working features:');
+                        console.error('  ✅ Keyboard input');
+                        console.error('  ✅ Mouse input');
+                        console.error('  ✅ Display (may have resolution mismatch)');
+                        console.error('');
+                        console.error('To fix: Install SPICE Guest Tools in the VM:');
+                        console.error('  • Windows: spice-guest-tools.exe');
+                        console.error('  • Linux: spice-vdagent package');
+                        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+                        // For vGPU VMs, this is critical
+                        if (sc && sc.is_vgpu) {
+                            console.error('');
+                            console.error('🎮 [vGPU] CRITICAL: vGPU VM requires agent for resolution adjustment!');
+                            console.error('   Without agent, display resolution will NOT match window size.');
+                        }
+                    }
+                }, 10000); // 10 second timeout
             }
         }
 
@@ -594,23 +609,45 @@
          * Handle agent connected
          */
         function handleAgentConnected(sc) {
-            console.log('✅ [SPICE] Agent connected');
+            console.log('✅✅✅ [SPICE] ===== AGENT CONNECTED ===== ✅✅✅');
+            console.log('   Agent is now ready to process commands');
+
             // Note: resize listener already added in connection setup
             window.spice_connection = sc;
 
-            // For vGPU VMs, trigger immediate resolution adjustment when agent connects
+            // NOW we can safely trigger resolution adjustment
+            // resize_window() requires agent to be connected
+            console.log('📐 [SPICE] Agent connected - now triggering resolution adjustment');
+
+            // For vGPU VMs, trigger immediate and repeated resolution adjustment
             if (sc.is_vgpu) {
-                console.log('🎮 [vGPU] Agent connected - triggering resolution adjustment');
+                console.log('🎮 [vGPU] Triggering aggressive resolution adjustment for vGPU VM');
+                console.log(`🎮 [vGPU] GPU Type: ${sc.gpu_type || 'unknown'}`);
+
+                // First adjustment
                 SpiceHtml5.resize_helper(sc);
 
-                // Trigger again after a short delay to ensure it takes effect
-                // This is important for vGPU VMs as the agent needs time to process the request
+                // Second adjustment after 1.5s (for vGPU VMs)
                 setTimeout(() => {
-                    console.log('🎮 [vGPU] Re-triggering resolution adjustment for vGPU VM');
+                    console.log('🎮 [vGPU] Re-triggering resolution adjustment (2nd attempt)');
                     SpiceHtml5.resize_helper(sc);
                 }, 1500);
+
+                // Third adjustment after 3s (belt and suspenders for vGPU)
+                setTimeout(() => {
+                    console.log('🎮 [vGPU] Re-triggering resolution adjustment (3rd attempt)');
+                    SpiceHtml5.resize_helper(sc);
+                }, 3000);
             } else {
+                // Standard VM - single resize attempt
+                console.log('🖥️  [Resize] Triggering resolution adjustment for standard VM');
                 SpiceHtml5.resize_helper(sc);
+
+                // One more attempt after 1s to ensure it takes
+                setTimeout(() => {
+                    console.log('🖥️  [Resize] Re-triggering resolution adjustment');
+                    SpiceHtml5.resize_helper(sc);
+                }, 1000);
             }
 
             // Setup file drag and drop if supported
