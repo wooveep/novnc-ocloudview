@@ -166,6 +166,12 @@ SpiceConn.prototype =
 {
     send_hdr : function ()
     {
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        console.log("📤 [SPICE Protocol] Sending Link Header + Link Message");
+        console.log("   Channel type: " + this.type);
+        console.log("   Connection ID: " + this.connection_id);
+        console.log("   Channel ID: " + this.chan_id);
+
         var hdr = new SpiceLinkHeader;
         var msg = new SpiceLinkMess;
 
@@ -229,6 +235,20 @@ SpiceConn.prototype =
         var mb = new ArrayBuffer(hdr.buffer_size() + msg.buffer_size());
         hdr.to_buffer(mb);
         msg.to_buffer(mb, hdr.buffer_size());
+
+        console.log("   Header size: " + hdr.buffer_size() + " bytes");
+        console.log("   Message size: " + msg.buffer_size() + " bytes");
+        console.log("   Total size: " + mb.byteLength + " bytes");
+
+        // Hex dump first 64 bytes for debugging
+        var view = new Uint8Array(mb);
+        var hexDump = "";
+        for (var i = 0; i < Math.min(64, view.length); i++) {
+            if (i > 0 && i % 16 === 0) hexDump += "\n   ";
+            hexDump += view[i].toString(16).padStart(2, '0') + " ";
+        }
+        console.log("   First 64 bytes (hex):\n   " + hexDump);
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
         DEBUG > 1 && console.log("Sending header:");
         DEBUG > 2 && hexdump_buffer(mb);
@@ -299,15 +319,44 @@ SpiceConn.prototype =
 
         else if (this.state == "start")
         {
+            console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            console.log("📥 [SPICE Protocol] Processing Link Header Reply");
+            console.log("   Current state: start");
+            console.log("   Data size: " + mb.byteLength + " bytes");
+
+            // Hex dump the data for debugging
+            var view = new Uint8Array(mb);
+            var hexDump = "";
+            for (var i = 0; i < Math.min(64, view.length); i++) {
+                if (i > 0 && i % 16 === 0) hexDump += "\n   ";
+                hexDump += view[i].toString(16).padStart(2, '0') + " ";
+            }
+            console.log("   Data (hex):\n   " + hexDump);
+
             this.reply_hdr = new SpiceLinkHeader(mb);
+
+            console.log("   Parsed magic: 0x" + this.reply_hdr.magic.toString(16));
+            console.log("   Expected magic: 0x" + Constants.SPICE_MAGIC.toString(16));
+            console.log("   Reply size field: " + this.reply_hdr.size + " bytes");
+
             if (this.reply_hdr.magic != Constants.SPICE_MAGIC)
             {
+                console.error("❌ [SPICE Protocol] Magic mismatch!");
+                console.error("   Got: 0x" + this.reply_hdr.magic.toString(16));
+                console.error("   Expected: 0x" + Constants.SPICE_MAGIC.toString(16));
+                console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
                 this.state = "error";
                 var e = new Error('Error: magic mismatch: ' + this.reply_hdr.magic);
                 this.report_error(e);
             }
             else
             {
+                console.log("✅ [SPICE Protocol] Magic verified!");
+                console.log("   Requesting " + this.reply_hdr.size + " more bytes for Link Reply");
+                console.log("   State: start → link");
+                console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
                 // FIXME - Determine major/minor version requirements
                 this.wire_reader.request(this.reply_hdr.size);
                 this.state = "link";
