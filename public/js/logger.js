@@ -19,11 +19,11 @@
  *   window.DEBUG_LEVEL = 'debug';
  *
  * 日志级别:
- *   debug - 显示所有日志 (默认)
+ *   debug - 显示所有日志
  *   info  - 显示 info/warn/error
  *   warn  - 显示 warn/error
  *   error - 仅显示 error
- *   none  - 不显示任何日志
+ *   none  - 不显示任何日志 (默认)
  */
 
 (function(window) {
@@ -39,14 +39,14 @@
 
   class Logger {
     constructor() {
-      // 从 localStorage 或 window.DEBUG_LEVEL 读取日志级别，默认为 debug
-      let envLevel = 'debug';
+      // 从 localStorage 或 window.DEBUG_LEVEL 读取日志级别，默认为 none（隐藏所有日志）
+      let envLevel = 'none';
 
       try {
-        envLevel = localStorage.getItem('DEBUG_LEVEL') || window.DEBUG_LEVEL || 'debug';
+        envLevel = localStorage.getItem('DEBUG_LEVEL') || window.DEBUG_LEVEL || 'none';
       } catch (e) {
         // localStorage 可能不可用（例如在某些隐私模式下）
-        envLevel = window.DEBUG_LEVEL || 'debug';
+        envLevel = window.DEBUG_LEVEL || 'none';
       }
 
       envLevel = envLevel.toLowerCase();

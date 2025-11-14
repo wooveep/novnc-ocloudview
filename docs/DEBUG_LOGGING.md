@@ -80,6 +80,8 @@ console.log('Current log level:', currentLevel);
 
 ## 前端配置
 
+**注意：** 前端默认日志级别为 `none`（不显示任何日志），如需查看调试信息，需要手动启用。
+
 ### 1. 引入 logger 模块
 
 在 HTML 文件中引入 logger.js（确保在使用 logger 的其他脚本之前引入）：
@@ -149,7 +151,7 @@ DEBUG_LEVEL=debug
 setLogLevel('debug');
 ```
 
-### 场景 2：生产环境（仅显示重要信息）
+### 场景 2：生产环境（隐藏调试信息）
 
 **后端 .env 配置：**
 ```bash
@@ -159,7 +161,8 @@ DEBUG_LEVEL=info
 
 **前端配置：**
 ```javascript
-// 浏览器控制台
+// 前端默认为 none（不显示任何日志），无需额外配置
+// 如果需要显示重要信息：
 setLogLevel('info');
 ```
 
