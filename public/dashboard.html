@@ -272,7 +272,19 @@
                     if (result.success) {
                         // 跳转到SPICE页面
                         console.log('✅ SPICE connection successful, redirecting...');
-                        window.location.href = `/spice.html?id=${vmId}&token=${Utils.getToken()}`;
+
+                        // Get GPU type from VM info for vGPU detection
+                        const vm = vms.find(v => v.id === vmId);
+                        const gpuType = vm && vm.gpuType ? vm.gpuType : '';
+
+                        if (gpuType && gpuType.toLowerCase().includes('nvidia')) {
+                            console.log('🎮 Detected vGPU VM with GPU type:', gpuType);
+                        }
+
+                        // Pass gpuType to SPICE client for resolution handling
+                        const spiceUrl = `/spice.html?id=${vmId}&token=${Utils.getToken()}` +
+                                        (gpuType ? `&gpuType=${encodeURIComponent(gpuType)}` : '');
+                        window.location.href = spiceUrl;
                     } else {
                         throw new Error(result.message || 'SPICE连接失败');
                     }

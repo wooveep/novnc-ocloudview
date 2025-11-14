@@ -402,6 +402,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const vmId = urlParams.get('id');
         const token = urlParams.get('token') || localStorage.getItem('token');
+        const gpuType = urlParams.get('gpuType') || ''; // vGPU type (e.g., "nvidia-...")
 
         let sc = null; // SPICE connection
 
@@ -409,6 +410,13 @@
         console.log('🚀 [SPICE Client] Initializing...');
         console.log(`   VM ID: ${vmId || 'Not provided'}`);
         console.log(`   Token source: ${urlParams.get('token') ? 'URL parameter' : 'localStorage'}`);
+        console.log(`   GPU Type: ${gpuType || 'Not specified (standard VM)'}`);
+
+        // Check if this is a vGPU VM
+        const isVGPU = gpuType && gpuType.toLowerCase().includes('nvidia');
+        if (isVGPU) {
+            console.log('🎮 [vGPU] Detected NVIDIA vGPU VM - will adjust resolution strategy');
+        }
 
         // Validate inputs
         if (!vmId) {
@@ -495,6 +503,10 @@
                     onagent: handleAgentConnected,
                     onsuccess: handleConnectionSuccess
                 });
+
+                // Set vGPU flag for resolution handling
+                sc.is_vgpu = isVGPU;
+                sc.gpu_type = gpuType;
 
                 console.log('✅ [SPICE Client] Connection initiated');
 

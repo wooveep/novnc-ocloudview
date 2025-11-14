@@ -108,7 +108,7 @@ const API = {
   // 基础请求方法
   async request(url, options = {}) {
     const token = Utils.getToken();
-    
+
     const defaultOptions = {
       headers: {
         'Content-Type': 'application/json',
@@ -133,8 +133,15 @@ const API = {
     }
 
     const result = await response.json();
-    
+
+    // For operations like force-reset that may return 500 but actually succeed,
+    // check if result.success is true before throwing error
     if (!response.ok) {
+      // If the response body indicates success despite HTTP error code, return it
+      if (result.success === true) {
+        console.warn(`⚠️ API returned HTTP ${response.status} but operation succeeded`);
+        return result;
+      }
       throw new Error(result.message || `请求失败: ${response.status}`);
     }
 
