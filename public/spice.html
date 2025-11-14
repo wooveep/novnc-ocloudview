@@ -509,16 +509,38 @@
                 sc.gpu_type = gpuType;
 
                 console.log('✅ [SPICE Client] Connection initiated');
+                console.log('   URI:', uri);
+                console.log('   Password set:', !!spiceInfo.password);
+                console.log('   vGPU mode:', sc.is_vgpu);
 
-                // Show SPICE container
+                // Show SPICE container immediately
                 elements.loadingContainer.style.display = 'none';
                 elements.spiceContainer.style.display = 'block';
 
-                // Setup resize handler and initial resize (don't wait for agent)
+                // Setup resize handler and wait for agent before adjusting resolution
                 window.spice_connection = sc;
+
+                // Add detailed state monitoring
+                let connectionCheckInterval = setInterval(() => {
+                    if (sc) {
+                        console.log('🔄 [Connection Monitor] State:', sc.state || 'unknown');
+                        if (sc.state === 'ready') {
+                            console.log('✅ [Connection Monitor] Connection is ready!');
+                            clearInterval(connectionCheckInterval);
+                        }
+                    }
+                }, 1000);
+
+                // Clear monitor after 30 seconds
+                setTimeout(() => clearInterval(connectionCheckInterval), 30000);
+
                 setTimeout(function() {
                     if (sc && sc.display && sc.display.surfaces && sc.display.surfaces[sc.display.primary_surface]) {
                         console.log('🖥️  [SPICE] Setting up display and input handlers');
+                        console.log('   Display state:', sc.display.state);
+                        console.log('   Primary surface:', sc.display.primary_surface);
+                        console.log('   Surfaces count:', sc.display.surfaces.length);
+
                         window.addEventListener('resize', SpiceHtml5.handle_resize);
 
                         // DO NOT call resize_helper here - it requires agent to be connected!
@@ -533,6 +555,16 @@
                             canvas.focus();
                             console.log('✅ [SPICE] Canvas focused for input');
                         }
+                    } else {
+                        console.error('❌ [SPICE] Display not ready after 1 second!');
+                        if (sc) {
+                            console.error('   Connection state:', sc.state);
+                            console.error('   Has display:', !!sc.display);
+                            if (sc.display) {
+                                console.error('   Display state:', sc.display.state);
+                                console.error('   Primary surface:', sc.display.primary_surface);
+                            }
+                        }
                     }
                 }, 1000); // Give time for display channel to initialize
 
@@ -546,8 +578,28 @@
          * Handle SPICE error
          */
         function handleSpiceError(e) {
-            console.error('❌ [SPICE] Error:', e);
-            showError('连接错误', 'SPICE 连接发生错误，请检查虚拟机状态后重试');
+            console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.error('❌ [SPICE ERROR] Connection error occurred!');
+            console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.error('Error object:', e);
+            console.error('Error type:', typeof e);
+            if (e) {
+                console.error('Error message:', e.message || e.toString());
+                console.error('Error stack:', e.stack);
+            }
+            if (sc) {
+                console.error('Connection state at error:', sc.state);
+                console.error('Connection details:', {
+                    has_display: !!sc.display,
+                    has_inputs: !!sc.inputs,
+                    has_cursor: !!sc.cursor,
+                    agent_connected: sc.agent_connected,
+                    is_vgpu: sc.is_vgpu
+                });
+            }
+            console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+            showError('连接错误', 'SPICE 连接发生错误，请检查虚拟机状态后重试。详细错误信息请查看浏览器控制台。');
             disconnect();
         }
 

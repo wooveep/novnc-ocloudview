@@ -87,8 +87,12 @@ function SpiceConn(o)
     this.warnings = [];
 
     this.ws.addEventListener('open', function(e) {
-        DEBUG > 0 && console.log(">> WebSockets.onopen");
-        DEBUG > 0 && console.log("id " + this.parent.connection_id +"; type " + this.parent.type);
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        console.log("✅ [WebSocket] Connection OPENED");
+        console.log("   Connection ID: " + this.parent.connection_id);
+        console.log("   Channel type: " + this.parent.type);
+        console.log("   State: " + this.parent.state + " → start");
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
         /***********************************************************************
         **          WHERE IT ALL REALLY BEGINS
@@ -98,26 +102,54 @@ function SpiceConn(o)
         this.parent.state = "start";
     });
     this.ws.addEventListener('error', function(e) {
+        console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        console.error("❌ [WebSocket] Connection ERROR");
+        console.error("   Connection ID: " + this.parent.connection_id);
+        console.error("   Channel type: " + this.parent.type);
+        console.error("   State: " + this.parent.state);
+        console.error("   Error event:", e);
         if ('url' in e.target) {
+            console.error("   URL: " + e.target.url);
             this.parent.log_err("WebSocket error: Can't connect to websocket on URL: " + e.target.url);
         }
+        console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         this.parent.report_error(e);
     });
     this.ws.addEventListener('close', function(e) {
-        DEBUG > 0 && console.log(">> WebSockets.onclose");
-        DEBUG > 0 && console.log("id " + this.parent.connection_id +"; type " + this.parent.type);
-        DEBUG > 0 && console.log(e);
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        console.log("🔌 [WebSocket] Connection CLOSED");
+        console.log("   Connection ID: " + this.parent.connection_id);
+        console.log("   Channel type: " + this.parent.type);
+        console.log("   State: " + this.parent.state);
+        console.log("   Close code: " + e.code);
+        console.log("   Close reason: " + (e.reason || '(no reason)'));
+        console.log("   Was clean: " + e.wasClean);
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
         if (this.parent.state != "closing" && this.parent.state != "error" && this.parent.onerror !== undefined)
         {
             var e;
+            console.error("⚠️  [WebSocket] Unexpected close - generating error based on state");
             if (this.parent.state == "connecting")
+            {
                 e = new Error("Connection refused.");
+                console.error("   Error type: Connection refused (state: connecting)");
+            }
             else if (this.parent.state == "start" || this.parent.state == "link")
+            {
                 e = new Error("Unexpected protocol mismatch.");
+                console.error("   Error type: Protocol mismatch (state: " + this.parent.state + ")");
+            }
             else if (this.parent.state == "ticket")
+            {
                 e = new Error("Bad password.");
+                console.error("   Error type: Bad password (state: ticket)");
+            }
             else
+            {
                 e = new Error("Unexpected close while " + this.parent.state);
+                console.error("   Error type: Unexpected close (state: " + this.parent.state + ")");
+            }
 
             this.parent.onerror(e);
             this.parent.log_err(e.toString());
@@ -161,25 +193,34 @@ SpiceConn.prototype =
         }
         else if (msg.channel_type == Constants.SPICE_CHANNEL_DISPLAY)
         {
+            console.log('📺 [SPICE Channel] Configuring Display channel capabilities...');
+
             // Force H.264 codec only - server does not support other codecs
             // Always enable MULTI_CODEC for codec negotiation
             var caps =  (1 << Constants.SPICE_DISPLAY_CAP_SIZED_STREAM) |
                         (1 << Constants.SPICE_DISPLAY_CAP_STREAM_REPORT) |
                         (1 << Constants.SPICE_DISPLAY_CAP_MULTI_CODEC);
 
+            console.log('   Base capabilities: SIZED_STREAM | STREAM_REPORT | MULTI_CODEC');
+
             // Only enable H.264 codec capability
             // Do NOT enable VP8 or MJPEG - server only supports H.264
             if (H264.h264_supported())
             {
                 caps |= (1 << Constants.SPICE_DISPLAY_CAP_CODEC_H264);
-                console.log('✅ [SPICE] H.264 codec enabled (forced - server requirement)');
+                console.log('   ✅ H.264 codec: ENABLED (forced - server requirement)');
+                console.log('   ❌ VP8 codec: DISABLED (server does not support)');
+                console.log('   ❌ MJPEG codec: DISABLED (server does not support)');
             }
             else
             {
-                console.error('❌ [SPICE] H.264 codec NOT supported by browser - connection may fail!');
-                console.error('   Server requires H.264 but browser does not support it.');
+                console.error('   ❌ H.264 codec NOT supported by browser!');
+                console.error('   ❌ VP8 codec: DISABLED (server does not support)');
+                console.error('   ❌ MJPEG codec: DISABLED (server does not support)');
+                console.error('   ⚠️  WARNING: No video codecs available - connection may fail!');
             }
 
+            console.log('   Capability bits: 0x' + caps.toString(16));
             msg.channel_caps.push(caps);
         }
 
