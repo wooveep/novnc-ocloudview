@@ -50,6 +50,16 @@ const config = {
     retryDelay: parseInt(process.env.RETRY_DELAY) || 1000, // 初始重试延迟（毫秒）
     retryBackoffMultiplier: parseFloat(process.env.RETRY_BACKOFF_MULTIPLIER) || 2, // 重试延迟倍数
   },
+  // SPICE 个性化配置
+  spice: {
+    bandwidthLimit: process.env.SPICE_BANDWIDTH_LIMIT != null ? parseInt(process.env.SPICE_BANDWIDTH_LIMIT) : 12,      // 带宽限制
+    frameRate: process.env.SPICE_FRAME_RATE != null ? parseInt(process.env.SPICE_FRAME_RATE) : 25,                     // 帧率
+    decodePixFormat: process.env.SPICE_DECODE_PIX_FORMAT != null ? parseInt(process.env.SPICE_DECODE_PIX_FORMAT) : 1,  // 解码像素格式
+    decodeType: process.env.SPICE_DECODE_TYPE != null ? parseInt(process.env.SPICE_DECODE_TYPE) : 1,                   // 解码类型
+    encodeFormat: process.env.SPICE_ENCODE_FORMAT != null ? parseInt(process.env.SPICE_ENCODE_FORMAT) : 0,             // 编码格式
+    gameMode: process.env.SPICE_GAME_MODE != null ? parseInt(process.env.SPICE_GAME_MODE) : 1,                         // 游戏模式
+    mouseMode: process.env.SPICE_MOUSE_MODE != null ? parseInt(process.env.SPICE_MOUSE_MODE) : 0,                      // 鼠标模式
+  },
   cors: {
     origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000'],
     credentials: true,
@@ -294,15 +304,15 @@ class OcloudviewService {
       logger.debug(`🔄 [SPICE API] Fetching connection info for VM: ${vmId}`);
       logger.debug(`   Token preview: ${token ? token.substring(0, 20) + '...' : 'null'}`);
 
-      // SPICE 个性化配置（默认配置）
+      // SPICE 个性化配置（从环境变量读取）
       const defaultPersonConfig = {
-        bandwidthLimit: 12,      // 带宽限制
-        frameRate: 25,           // 帧率
-        spiceDecodePixFormat: 1, // 解码像素格式
-        spiceDecodeType: 1,      // 解码类型
-        spiceEncodeFormat: 0,    // 编码格式
-        spiceGameMode: 1,        // 游戏模式
-        spiceMouseMode: 0        // 鼠标模式
+        bandwidthLimit: config.spice.bandwidthLimit,
+        frameRate: config.spice.frameRate,
+        spiceDecodePixFormat: config.spice.decodePixFormat,
+        spiceDecodeType: config.spice.decodeType,
+        spiceEncodeFormat: config.spice.encodeFormat,
+        spiceGameMode: config.spice.gameMode,
+        spiceMouseMode: config.spice.mouseMode
       };
 
       const requestData = {
@@ -544,15 +554,15 @@ class OcloudviewService {
       // 先获取基本连接信息
       const connectionInfo = await this.getDeskPoolConnectionInfo(token, deskId, username);
 
-      // SPICE 个性化配置（默认配置）
+      // SPICE 个性化配置（从环境变量读取）
       const defaultPersonConfig = {
-        bandwidthLimit: 12,
-        frameRate: 25,
-        spiceDecodePixFormat: 1,
-        spiceDecodeType: 1,
-        spiceEncodeFormat: 0,
-        spiceGameMode: 1,
-        spiceMouseMode: 0
+        bandwidthLimit: config.spice.bandwidthLimit,
+        frameRate: config.spice.frameRate,
+        spiceDecodePixFormat: config.spice.decodePixFormat,
+        spiceDecodeType: config.spice.decodeType,
+        spiceEncodeFormat: config.spice.encodeFormat,
+        spiceGameMode: config.spice.gameMode,
+        spiceMouseMode: config.spice.mouseMode
       };
 
       const requestData = {
