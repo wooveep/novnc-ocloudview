@@ -424,10 +424,17 @@
 
         'use strict';
 
+        // Parse URL parameters (must be before CONFIG)
+        const urlParams = new URLSearchParams(window.location.search);
+
         // Configuration
         const CONFIG = {
             API_ENDPOINT: '/api/spice/connect',
             REDIRECT_DELAY: 2000,
+            // Toolbar show delay (can be overridden by URL parameter or environment variable)
+            // Default: 500ms (was 2000ms) - faster toolbar appearance
+            // Can be customized via: ?toolbarDelay=1000 or window.TOOLBAR_SHOW_DELAY
+            TOOLBAR_SHOW_DELAY: parseInt(urlParams.get('toolbarDelay')) || parseInt(window.TOOLBAR_SHOW_DELAY) || 500,
             DEFAULT_SETTINGS: {
                 // SPICE settings can be configured here
             }
@@ -448,8 +455,7 @@
             resolutionDropdown: document.getElementById('resolutionDropdown')
         };
 
-        // Parse URL parameters
-        const urlParams = new URLSearchParams(window.location.search);
+        // Continue parsing URL parameters
         const vmId = urlParams.get('id');
         const token = urlParams.get('token') || localStorage.getItem('token');
         const gpuType = urlParams.get('gpuType') || ''; // vGPU type (e.g., "nvidia-...")
@@ -461,6 +467,7 @@
         console.log(`   VM ID: ${vmId || 'Not provided'}`);
         console.log(`   Token source: ${urlParams.get('token') ? 'URL parameter' : 'localStorage'}`);
         console.log(`   GPU Type: ${gpuType || 'Not specified (standard VM)'}`);
+        console.log(`   Toolbar delay: ${CONFIG.TOOLBAR_SHOW_DELAY}ms`);
 
         // Check if this is a vGPU VM
         const isVGPU = gpuType && gpuType.toLowerCase().includes('nvidia');
@@ -981,14 +988,14 @@
             controlPanel.classList.remove('visible');
         }
 
-        // Trigger area hover - show after 2s delay
+        // Trigger area hover - show after configured delay (default: 500ms)
         toolbarTrigger.addEventListener('mouseenter', function() {
             if (toolbarShowTimer) {
                 clearTimeout(toolbarShowTimer);
             }
             toolbarShowTimer = setTimeout(function() {
                 showToolbar();
-            }, 2000); // 2秒延迟
+            }, CONFIG.TOOLBAR_SHOW_DELAY);
         });
 
         toolbarTrigger.addEventListener('mouseleave', function() {
