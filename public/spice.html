@@ -197,6 +197,28 @@
             font-size: 16px;
         }
 
+        /* Resolution dropdown styles */
+        .resolution-select {
+            padding: 6px 10px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            outline: none;
+        }
+
+        .resolution-select:hover {
+            background: #5568d3;
+        }
+
+        .resolution-select option {
+            background: #2d3748;
+            color: white;
+        }
+
         /* Fullscreen styles */
         #spice-container:-webkit-full-screen {
             width: 100%;
@@ -352,6 +374,30 @@
             <span id="connection-status">已连接</span>
             <button class="control-button" id="ctrlAltDelButton">Ctrl+Alt+Del</button>
             <button class="control-button" id="diagnosticButton">协议诊断</button>
+            <select id="resolutionDropdown" class="resolution-select" style="display: none;">
+                <option value="">选择分辨率</option>
+                <option value="2560x1600">2560x1600</option>
+                <option value="2560x1440">2560x1440</option>
+                <option value="2048x1536">2048x1536</option>
+                <option value="1920x1440">1920x1440</option>
+                <option value="1920x1200">1920x1200</option>
+                <option value="1920x1080">1920x1080</option>
+                <option value="1680x1050">1680x1050</option>
+                <option value="1600x1200">1600x1200</option>
+                <option value="1600x1024">1600x1024</option>
+                <option value="1600x900">1600x900</option>
+                <option value="1440x1080">1440x1080</option>
+                <option value="1366x768">1366x768</option>
+                <option value="1360x768">1360x768</option>
+                <option value="1280x1024">1280x1024</option>
+                <option value="1280x960">1280x960</option>
+                <option value="1280x800">1280x800</option>
+                <option value="1280x768">1280x768</option>
+                <option value="1280x720">1280x720</option>
+                <option value="1152x864">1152x864</option>
+                <option value="1024x768">1024x768</option>
+                <option value="800x600">800x600</option>
+            </select>
             <button class="control-button success" id="fullscreenButton">全屏</button>
             <div class="control-spacer"></div>
             <button class="control-button danger" id="disconnectButton">断开连接</button>
@@ -398,7 +444,8 @@
             ctrlAltDelButton: document.getElementById('ctrlAltDelButton'),
             fullscreenButton: document.getElementById('fullscreenButton'),
             disconnectButton: document.getElementById('disconnectButton'),
-            connectionStatus: document.getElementById('connection-status')
+            connectionStatus: document.getElementById('connection-status'),
+            resolutionDropdown: document.getElementById('resolutionDropdown')
         };
 
         // Parse URL parameters
@@ -679,6 +726,12 @@
                 console.log('🎮 [vGPU] Triggering aggressive resolution adjustment for vGPU VM');
                 console.log(`🎮 [vGPU] GPU Type: ${sc.gpu_type || 'unknown'}`);
 
+                // Show resolution dropdown for GPU desktops
+                if (elements.resolutionDropdown) {
+                    elements.resolutionDropdown.style.display = 'block';
+                    console.log('🎮 [vGPU] Resolution dropdown enabled');
+                }
+
                 // First adjustment
                 SpiceHtml5.resize_helper(sc);
 
@@ -793,6 +846,52 @@
         elements.disconnectButton.addEventListener('click', function() {
             if (confirm('确定要断开连接吗？')) {
                 disconnect();
+            }
+        });
+
+        /**
+         * Resolution dropdown handler for GPU desktops
+         */
+        elements.resolutionDropdown.addEventListener('change', function() {
+            const selectedResolution = this.value;
+            if (selectedResolution && sc) {
+                const [width, height] = selectedResolution.split('x').map(num => parseInt(num.trim()));
+
+                console.log(`🎮 [vGPU] User selected resolution: ${width}x${height}`);
+
+                // Align to 8-pixel boundary
+                let alignedWidth = width;
+                let alignedHeight = height;
+
+                if (alignedWidth % 8 > 0)
+                    alignedWidth -= (alignedWidth % 8);
+                if (alignedHeight % 8 > 0)
+                    alignedHeight -= (alignedHeight % 8);
+
+                // Reduce by 20px for GPU desktops (as per requirement)
+                alignedWidth = Math.max(640, alignedWidth - 20);
+                alignedHeight = Math.max(480, alignedHeight - 20);
+
+                // Re-align after reduction
+                if (alignedWidth % 8 > 0)
+                    alignedWidth -= (alignedWidth % 8);
+                if (alignedHeight % 8 > 0)
+                    alignedHeight -= (alignedHeight % 8);
+
+                console.log(`🎮 [vGPU] Adjusted resolution: ${alignedWidth}x${alignedHeight} (aligned and reduced by 20px)`);
+
+                // Send resolution change via SPICE
+                if (sc.resize_window) {
+                    sc.resize_window(0, alignedWidth, alignedHeight, 32, 0, 0);
+                    console.log(`✅ [vGPU] Resolution change sent via SPICE`);
+                } else {
+                    console.error('❌ [vGPU] resize_window function not available');
+                }
+
+                // Reset dropdown to default
+                setTimeout(() => {
+                    this.value = '';
+                }, 500);
             }
         });
 

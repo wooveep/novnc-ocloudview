@@ -74,9 +74,19 @@ function resize_helper(sc)
     // resolutions that fit within the current window
     if (sc.is_vgpu)
     {
+        // Reduce resolution by 20px for GPU desktops
+        w = Math.max(640, w - 20);  // Ensure minimum width of 640px
+        h = Math.max(480, h - 20);  // Ensure minimum height of 480px
+
+        // Re-align to 8-pixel boundary after reduction
+        if (h % 8 > 0)
+            h -= (h % 8);
+        if (w % 8 > 0)
+            w -= (w % 8);
+
         logger.debug(`🎮 [vGPU] Resolution adjustment for vGPU VM (${sc.gpu_type || 'unknown'})`);
         logger.debug(`  - Window size: ${original_w}x${original_h} (original)`);
-        logger.debug(`  - Adjusted size: ${w}x${h} (aligned to 8-pixel boundary)`);
+        logger.debug(`  - Adjusted size: ${w}x${h} (aligned to 8-pixel boundary, reduced by 20px)`);
         logger.debug(`  - Requesting VM resolution: ${w}x${h}`);
         logger.debug(`  - This ensures VM resolution ≤ window size`);
     }
